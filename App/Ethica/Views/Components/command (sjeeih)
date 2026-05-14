@@ -1,0 +1,1 @@
+cd /Users/Jain1/Desktop/Ethica-Apple/Ethica && xcodebuild -scheme Ethica -configuration Debug -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17' build 2>&1 | tail -20

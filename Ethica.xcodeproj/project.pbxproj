@@ -1,0 +1,1139 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		19F2FB86CBF1193E1427466E /* Pods_Ethica.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 871510464A784ED1802FA6F4 /* Pods_Ethica.framework */; };
+		1E0314862F06216B00B8B75A /* AIResultsCacheService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E0314852F06216B00B8B75A /* AIResultsCacheService.swift */; };
+		1E481E742EC41167009F8B99 /* EthicaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E481E6A2EC401F6009F8B99 /* EthicaApp.swift */; };
+		1E481E752EC4117C009F8B99 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E481E692EC401F6009F8B99 /* ContentView.swift */; };
+		1E481E762EC41190009F8B99 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E481E642EC401F6009F8B99 /* ImagePicker.swift */; };
+		1E481E772EC41194009F8B99 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E481E652EC401F6009F8B99 /* PreferencesView.swift */; };
+		1E481E782EC4119A009F8B99 /* ResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E481E662EC401F6009F8B99 /* ResultsView.swift */; };
+		1E481E792EC411A0009F8B99 /* ScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E481E672EC401F6009F8B99 /* ScannerView.swift */; };
+		1E481E7A2EC411A7009F8B99 /* NetworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E481E612EC401F6009F8B99 /* NetworkService.swift */; };
+		1E481E7B2EC411AC009F8B99 /* PreferencesStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E481E622EC401F6009F8B99 /* PreferencesStorage.swift */; };
+		1E5162C82F06FED50061EA4B /* AnimationExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162C72F06FED50061EA4B /* AnimationExtensions.swift */; };
+		1E5162D82F286FD30061EA4B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162D32F286FD30061EA4B /* Theme.swift */; };
+		1E5162DA2F286FD30061EA4B /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162D42F286FD30061EA4B /* Typography.swift */; };
+		1E5162DB2F286FD30061EA4B /* Spacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162D22F286FD30061EA4B /* Spacing.swift */; };
+		1E5162DC2F286FD30061EA4B /* Animation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162D02F286FD30061EA4B /* Animation.swift */; };
+		1E5162DE2F286FD30061EA4B /* ColorPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162D12F286FD30061EA4B /* ColorPalette.swift */; };
+		1E5162E12F16AA010061EA4B /* EthicaAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162E02F16AA010061EA4B /* EthicaAnimations.swift */; };
+		1E5162EC2F2870200061EA4B /* ProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162E72F2870200061EA4B /* ProgressBar.swift */; };
+		1E5162ED2F2870200061EA4B /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162E42F2870200061EA4B /* GlassCard.swift */; };
+		1E5162EE2F2870200061EA4B /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162EA2F2870200061EA4B /* StatusBadge.swift */; };
+		1E5162EF2F2870200061EA4B /* ExpandableSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162E32F2870200061EA4B /* ExpandableSection.swift */; };
+		1E5162F02F2870200061EA4B /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162E62F2870200061EA4B /* PrimaryButton.swift */; };
+		1E5162F12F2870200061EA4B /* StatisticCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162E92F2870200061EA4B /* StatisticCard.swift */; };
+		1E5162F22F2870200061EA4B /* EmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162E22F2870200061EA4B /* EmptyState.swift */; };
+		1E5162F32F2870200061EA4B /* ScoreCircle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162E82F2870200061EA4B /* ScoreCircle.swift */; };
+		1E5162F42F2870200061EA4B /* LoadingOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162E52F2870200061EA4B /* LoadingOverlay.swift */; };
+		1E5162F52F2870200061EA4B /* DesignSystemShowcase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162E12F2870200061EA4B /* DesignSystemShowcase.swift */; };
+		1E5162FD2F28719C0061EA4B /* ScanHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162FA2F28719C0061EA4B /* ScanHistory.swift */; };
+		1E5162FE2F28719C0061EA4B /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162F82F28719C0061EA4B /* APIModels.swift */; };
+		1E5162FF2F28719C0061EA4B /* DetectedProduct.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162F92F28719C0061EA4B /* DetectedProduct.swift */; };
+		1E5163002F28719C0061EA4B /* UserPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162FB2F28719C0061EA4B /* UserPreferences.swift */; };
+		1E5163012F28719C0061EA4B /* AnalysisResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5162F62F28719C0061EA4B /* AnalysisResult.swift */; };
+		1E5163042F29D94C0061EA4B /* ProductComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5163032F29D94C0061EA4B /* ProductComparisonView.swift */; };
+		1E5163062F29D9610061EA4B /* InsightsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5163052F29D9610061EA4B /* InsightsCard.swift */; };
+		1E5163092F29D9880061EA4B /* ScanHistoryGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5163072F29D9880061EA4B /* ScanHistoryGrouping.swift */; };
+		1E6923CC2F7DA28000388697 /* QuickSafetyResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E6923CB2F7DA28000388697 /* QuickSafetyResultView.swift */; };
+		1E7483E82EFB0D0D0094AA3F /* PlateAnalysisResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E7483E62EFB0D0D0094AA3F /* PlateAnalysisResultView.swift */; };
+		1E7483E92EFB0D0D0094AA3F /* PlateCheckContextSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E7483E72EFB0D0D0094AA3F /* PlateCheckContextSheet.swift */; };
+		1E84AC7D2F35A13E004FD121 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E84AC7C2F35A13E004FD121 /* HapticManager.swift */; };
+		1E84AC812F3E7E36004FD121 /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E84AC802F3E7E36004FD121 /* ImageCache.swift */; };
+		1E84AC832F3E7E61004FD121 /* Debouncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E84AC822F3E7E61004FD121 /* Debouncer.swift */; };
+		1E864B712F048666001A2305 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1E864B702F048666001A2305 /* GoogleService-Info.plist */; };
+		1E864B732F048A97001A2305 /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E864B722F048A97001A2305 /* AuthenticationService.swift */; };
+		1E864B752F048AD2001A2305 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E864B742F048AD2001A2305 /* SignInView.swift */; };
+		1E9C966E2EC6C7FC004BF1D4 /* Color+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9C966D2EC6C7FC004BF1D4 /* Color+Extensions.swift */; };
+		1E9C96702EC90F06004BF1D4 /* BlurView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9C966F2EC90F06004BF1D4 /* BlurView.swift */; };
+		1E9C96732ED265F8004BF1D4 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9C96712ED265F8004BF1D4 /* DashboardView.swift */; };
+		1E9C96742ED265F8004BF1D4 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9C96722ED265F8004BF1D4 /* HistoryView.swift */; };
+		1E9C96792ED2662F004BF1D4 /* HistoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9C96772ED2662F004BF1D4 /* HistoryService.swift */; };
+		1E9C967A2ED2662F004BF1D4 /* ImpactCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9C96782ED2662F004BF1D4 /* ImpactCalculator.swift */; };
+		1EDB10012EDBAA01001A2B3C /* BarcodeScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDB10002EDBAA01001A2B3C /* BarcodeScanner.swift */; };
+		1EDB10032EDBAA02001A2B3C /* OpenFoodFactsClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDB10022EDBAA02001A2B3C /* OpenFoodFactsClient.swift */; };
+		1EDB10052EDBAA03001A2B3C /* ProductCacheService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDB10042EDBAA03001A2B3C /* ProductCacheService.swift */; };
+		1EDB10072EDBAA04001A2B3C /* ProductDatabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDB10062EDBAA04001A2B3C /* ProductDatabaseService.swift */; };
+		1EDBMGR12F50000000000001 /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDBMGR02F50000000000001 /* DatabaseManager.swift */; };
+		1EEE87902ED527C800415768 /* MenuAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE878F2ED527C800415768 /* MenuAnalysisView.swift */; };
+		1EEE87922ED677B200415768 /* AROverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE87912ED677B200415768 /* AROverlayView.swift */; };
+		1EEE87982ED677FE00415768 /* ProductRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE87962ED677FE00415768 /* ProductRecognitionService.swift */; };
+		1EEE87992ED677FE00415768 /* VoiceGuidanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE87972ED677FE00415768 /* VoiceGuidanceService.swift */; };
+		1EEE879A2ED677FE00415768 /* ARCameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE87952ED677FE00415768 /* ARCameraManager.swift */; };
+		1EEE879D2ED6781B00415768 /* AlternativeProductOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE879B2ED6781B00415768 /* AlternativeProductOverlay.swift */; };
+		1EEE879E2ED6781B00415768 /* ARGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE879C2ED6781B00415768 /* ARGuideView.swift */; };
+		1EEE87A12ED781C500415768 /* ScanProductIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE879F2ED781C500415768 /* ScanProductIntent.swift */; };
+		1EEE87A42ED7A14E00415768 /* LiveBarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE87A22ED7A14E00415768 /* LiveBarcodeScannerView.swift */; };
+		1EEE87A52ED7A14E00415768 /* VisualProductScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE87A32ED7A14E00415768 /* VisualProductScannerView.swift */; };
+		1EF832222F54920500FF8412 /* ReplaceAppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF832212F54920500FF8412 /* ReplaceAppLogger.swift */; };
+		1EF832242F54930B00FF8412 /* PERFORMANCE_IMPROVEMENTS_SUMMARY.md in Resources */ = {isa = PBXBuildFile; fileRef = 1EF832232F54930B00FF8412 /* PERFORMANCE_IMPROVEMENTS_SUMMARY.md */; };
+		1EFD00752F402F2B00461A41 /* ProductReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00722F402F2B00461A41 /* ProductReview.swift */; };
+		1EFD00762F402F2B00461A41 /* TasteProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00732F402F2B00461A41 /* TasteProfile.swift */; };
+		1EFD00772F402F2B00461A41 /* UserImpact.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00742F402F2B00461A41 /* UserImpact.swift */; };
+		1EFD007B2F402F4500461A41 /* TasteProfileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD007A2F402F4500461A41 /* TasteProfileService.swift */; };
+		1EFD007C2F402F4500461A41 /* ImpactService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00782F402F4500461A41 /* ImpactService.swift */; };
+		1EFD007D2F402F4500461A41 /* ReviewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00792F402F4500461A41 /* ReviewService.swift */; };
+		1EFD00852F40307200461A41 /* AlternativeReviewSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD007F2F40307200461A41 /* AlternativeReviewSummary.swift */; };
+		1EFD00862F40307200461A41 /* ImpactDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00842F40307200461A41 /* ImpactDashboardView.swift */; };
+		1EFD00872F40307200461A41 /* NutritionComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00802F40307200461A41 /* NutritionComparisonView.swift */; };
+		1EFD00882F40307200461A41 /* AlternativeComparisonCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD007E2F40307200461A41 /* AlternativeComparisonCard.swift */; };
+		1EFD00892F40307200461A41 /* ReviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00812F40307200461A41 /* ReviewCard.swift */; };
+		1EFD008A2F40307200461A41 /* ReviewSubmissionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00822F40307200461A41 /* ReviewSubmissionSheet.swift */; };
+		1EFD008C2F40309100461A41 /* TasteProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD008B2F40309100461A41 /* TasteProfileView.swift */; };
+		1EFD008F2F4030BF00461A41 /* TermsOfServiceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD008E2F4030BF00461A41 /* TermsOfServiceView.swift */; };
+		1EFD00902F4030BF00461A41 /* PrivacyPolicyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD008D2F4030BF00461A41 /* PrivacyPolicyView.swift */; };
+		1EFD00922F40E44400461A41 /* StoreAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00912F40E44400461A41 /* StoreAvailability.swift */; };
+		1EFD00942F40E45400461A41 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00932F40E45400461A41 /* LocationService.swift */; };
+		1EFD00962F40E46500461A41 /* StoreAvailabilityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00952F40E46500461A41 /* StoreAvailabilityService.swift */; };
+		1EFD00982F40E47800461A41 /* StoreAvailabilityBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00972F40E47800461A41 /* StoreAvailabilityBadge.swift */; };
+		1EFD009B2F43774500461A41 /* ReportIssueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD009A2F43774500461A41 /* ReportIssueView.swift */; };
+		1EFD009C2F43774500461A41 /* DisclaimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00992F43774500461A41 /* DisclaimerView.swift */; };
+		1EFD009E2F43775D00461A41 /* IngredientMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD009D2F43775D00461A41 /* IngredientMatcher.swift */; };
+		1EFD00A02F44CE4900461A41 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD009F2F44CE4900461A41 /* OnboardingView.swift */; };
+		208F8CB51220F7D924E598A3 /* PlateAnalysisModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F949C2A1DD683D0170440A /* PlateAnalysisModel.swift */; };
+		AA1234560001000000000001 /* JainDietValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1234560001000000000002 /* JainDietValidator.swift */; };
+		AABB00010000000000000002 /* EthicaTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00010000000000000001 /* EthicaTabBar.swift */; };
+		AABB00020000000000000002 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00020000000000000001 /* ToastView.swift */; };
+		AABB00030000000000000002 /* SkeletonViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00030000000000000001 /* SkeletonViews.swift */; };
+		AABB00040000000000000002 /* AmbientGradient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00040000000000000001 /* AmbientGradient.swift */; };
+		AABB00050000000000000002 /* BottomSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00050000000000000001 /* BottomSheet.swift */; };
+		AABB00060000000000000002 /* LottieView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00060000000000000001 /* LottieView.swift */; };
+		E2604009384361513636C35C /* DebugLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97AF1CF98E58B0CD06C244F /* DebugLogger.swift */; };
+		EBF94C74727BCB720173E287 /* OfflineCacheService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51795ABC15F7C559F9BFE6BB /* OfflineCacheService.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		1E481E412EC400D7009F8B99 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1E481E2B2EC400D3009F8B99 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1E481E322EC400D3009F8B99;
+			remoteInfo = Ethica;
+		};
+		1E481E4B2EC400D7009F8B99 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1E481E2B2EC400D3009F8B99 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1E481E322EC400D3009F8B99;
+			remoteInfo = Ethica;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		1E0314852F06216B00B8B75A /* AIResultsCacheService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIResultsCacheService.swift; sourceTree = "<group>"; };
+		1E481E332EC400D3009F8B99 /* Ethica.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ethica.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1E481E402EC400D7009F8B99 /* EthicaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EthicaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1E481E4A2EC400D7009F8B99 /* EthicaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EthicaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1E481E612EC401F6009F8B99 /* NetworkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkService.swift; sourceTree = "<group>"; };
+		1E481E622EC401F6009F8B99 /* PreferencesStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesStorage.swift; sourceTree = "<group>"; };
+		1E481E642EC401F6009F8B99 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
+		1E481E652EC401F6009F8B99 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
+		1E481E662EC401F6009F8B99 /* ResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsView.swift; sourceTree = "<group>"; };
+		1E481E672EC401F6009F8B99 /* ScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannerView.swift; sourceTree = "<group>"; };
+		1E481E692EC401F6009F8B99 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		1E481E6A2EC401F6009F8B99 /* EthicaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EthicaApp.swift; sourceTree = "<group>"; };
+		1E481E722EC406A7009F8B99 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1E5162C72F06FED50061EA4B /* AnimationExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationExtensions.swift; sourceTree = "<group>"; };
+		1E5162D02F286FD30061EA4B /* Animation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Animation.swift; sourceTree = "<group>"; };
+		1E5162D12F286FD30061EA4B /* ColorPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPalette.swift; sourceTree = "<group>"; };
+		1E5162D22F286FD30061EA4B /* Spacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spacing.swift; sourceTree = "<group>"; };
+		1E5162D32F286FD30061EA4B /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		1E5162D42F286FD30061EA4B /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
+		1E5162E02F16AA010061EA4B /* EthicaAnimations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EthicaAnimations.swift; sourceTree = "<group>"; };
+		1E5162E12F2870200061EA4B /* DesignSystemShowcase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystemShowcase.swift; sourceTree = "<group>"; };
+		1E5162E22F2870200061EA4B /* EmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyState.swift; sourceTree = "<group>"; };
+		1E5162E32F2870200061EA4B /* ExpandableSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandableSection.swift; sourceTree = "<group>"; };
+		1E5162E42F2870200061EA4B /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
+		1E5162E52F2870200061EA4B /* LoadingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingOverlay.swift; sourceTree = "<group>"; };
+		1E5162E62F2870200061EA4B /* PrimaryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryButton.swift; sourceTree = "<group>"; };
+		1E5162E72F2870200061EA4B /* ProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBar.swift; sourceTree = "<group>"; };
+		1E5162E82F2870200061EA4B /* ScoreCircle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreCircle.swift; sourceTree = "<group>"; };
+		1E5162E92F2870200061EA4B /* StatisticCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticCard.swift; sourceTree = "<group>"; };
+		1E5162EA2F2870200061EA4B /* StatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadge.swift; sourceTree = "<group>"; };
+		1E5162F62F28719C0061EA4B /* AnalysisResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisResult.swift; sourceTree = "<group>"; };
+		1E5162F82F28719C0061EA4B /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
+		1E5162F92F28719C0061EA4B /* DetectedProduct.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectedProduct.swift; sourceTree = "<group>"; };
+		1E5162FA2F28719C0061EA4B /* ScanHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistory.swift; sourceTree = "<group>"; };
+		1E5162FB2F28719C0061EA4B /* UserPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPreferences.swift; sourceTree = "<group>"; };
+		1E5163032F29D94C0061EA4B /* ProductComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductComparisonView.swift; sourceTree = "<group>"; };
+		1E5163052F29D9610061EA4B /* InsightsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsCard.swift; sourceTree = "<group>"; };
+		1E5163072F29D9880061EA4B /* ScanHistoryGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistoryGrouping.swift; sourceTree = "<group>"; };
+		1E6923CB2F7DA28000388697 /* QuickSafetyResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSafetyResultView.swift; sourceTree = "<group>"; };
+		1E7483E62EFB0D0D0094AA3F /* PlateAnalysisResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlateAnalysisResultView.swift; sourceTree = "<group>"; };
+		1E7483E72EFB0D0D0094AA3F /* PlateCheckContextSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlateCheckContextSheet.swift; sourceTree = "<group>"; };
+		1E84AC7C2F35A13E004FD121 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
+		1E84AC802F3E7E36004FD121 /* ImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCache.swift; sourceTree = "<group>"; };
+		1E84AC822F3E7E61004FD121 /* Debouncer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debouncer.swift; sourceTree = "<group>"; };
+		1E864B702F048666001A2305 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		1E864B722F048A97001A2305 /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
+		1E864B742F048AD2001A2305 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
+		1E9C966D2EC6C7FC004BF1D4 /* Color+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Extensions/Color+Extensions.swift"; sourceTree = "<group>"; };
+		1E9C966F2EC90F06004BF1D4 /* BlurView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlurView.swift; sourceTree = "<group>"; };
+		1E9C96712ED265F8004BF1D4 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		1E9C96722ED265F8004BF1D4 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
+		1E9C96772ED2662F004BF1D4 /* HistoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryService.swift; sourceTree = "<group>"; };
+		1E9C96782ED2662F004BF1D4 /* ImpactCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImpactCalculator.swift; sourceTree = "<group>"; };
+		1EDB10002EDBAA01001A2B3C /* BarcodeScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScanner.swift; sourceTree = "<group>"; };
+		1EDB10022EDBAA02001A2B3C /* OpenFoodFactsClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenFoodFactsClient.swift; sourceTree = "<group>"; };
+		1EDB10042EDBAA03001A2B3C /* ProductCacheService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductCacheService.swift; sourceTree = "<group>"; };
+		1EDB10062EDBAA04001A2B3C /* ProductDatabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductDatabaseService.swift; sourceTree = "<group>"; };
+		1EDBMGR02F50000000000001 /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
+		1EEE878F2ED527C800415768 /* MenuAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuAnalysisView.swift; sourceTree = "<group>"; };
+		1EEE87912ED677B200415768 /* AROverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AROverlayView.swift; sourceTree = "<group>"; };
+		1EEE87952ED677FE00415768 /* ARCameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARCameraManager.swift; sourceTree = "<group>"; };
+		1EEE87962ED677FE00415768 /* ProductRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductRecognitionService.swift; sourceTree = "<group>"; };
+		1EEE87972ED677FE00415768 /* VoiceGuidanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceGuidanceService.swift; sourceTree = "<group>"; };
+		1EEE879B2ED6781B00415768 /* AlternativeProductOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlternativeProductOverlay.swift; sourceTree = "<group>"; };
+		1EEE879C2ED6781B00415768 /* ARGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARGuideView.swift; sourceTree = "<group>"; };
+		1EEE879F2ED781C500415768 /* ScanProductIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanProductIntent.swift; sourceTree = "<group>"; };
+		1EEE87A22ED7A14E00415768 /* LiveBarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBarcodeScannerView.swift; sourceTree = "<group>"; };
+		1EEE87A32ED7A14E00415768 /* VisualProductScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualProductScannerView.swift; sourceTree = "<group>"; };
+		1EF832212F54920500FF8412 /* ReplaceAppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplaceAppLogger.swift; sourceTree = "<group>"; };
+		1EF832232F54930B00FF8412 /* PERFORMANCE_IMPROVEMENTS_SUMMARY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PERFORMANCE_IMPROVEMENTS_SUMMARY.md; sourceTree = "<group>"; };
+		1EFD00722F402F2B00461A41 /* ProductReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductReview.swift; sourceTree = "<group>"; };
+		1EFD00732F402F2B00461A41 /* TasteProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasteProfile.swift; sourceTree = "<group>"; };
+		1EFD00742F402F2B00461A41 /* UserImpact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserImpact.swift; sourceTree = "<group>"; };
+		1EFD00782F402F4500461A41 /* ImpactService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImpactService.swift; sourceTree = "<group>"; };
+		1EFD00792F402F4500461A41 /* ReviewService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewService.swift; sourceTree = "<group>"; };
+		1EFD007A2F402F4500461A41 /* TasteProfileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasteProfileService.swift; sourceTree = "<group>"; };
+		1EFD007E2F40307200461A41 /* AlternativeComparisonCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlternativeComparisonCard.swift; sourceTree = "<group>"; };
+		1EFD007F2F40307200461A41 /* AlternativeReviewSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlternativeReviewSummary.swift; sourceTree = "<group>"; };
+		1EFD00802F40307200461A41 /* NutritionComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionComparisonView.swift; sourceTree = "<group>"; };
+		1EFD00812F40307200461A41 /* ReviewCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewCard.swift; sourceTree = "<group>"; };
+		1EFD00822F40307200461A41 /* ReviewSubmissionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewSubmissionSheet.swift; sourceTree = "<group>"; };
+		1EFD00842F40307200461A41 /* ImpactDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImpactDashboardView.swift; sourceTree = "<group>"; };
+		1EFD008B2F40309100461A41 /* TasteProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasteProfileView.swift; sourceTree = "<group>"; };
+		1EFD008D2F4030BF00461A41 /* PrivacyPolicyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyPolicyView.swift; sourceTree = "<group>"; };
+		1EFD008E2F4030BF00461A41 /* TermsOfServiceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsOfServiceView.swift; sourceTree = "<group>"; };
+		1EFD00912F40E44400461A41 /* StoreAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreAvailability.swift; sourceTree = "<group>"; };
+		1EFD00932F40E45400461A41 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		1EFD00952F40E46500461A41 /* StoreAvailabilityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreAvailabilityService.swift; sourceTree = "<group>"; };
+		1EFD00972F40E47800461A41 /* StoreAvailabilityBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreAvailabilityBadge.swift; sourceTree = "<group>"; };
+		1EFD00992F43774500461A41 /* DisclaimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisclaimerView.swift; sourceTree = "<group>"; };
+		1EFD009A2F43774500461A41 /* ReportIssueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportIssueView.swift; sourceTree = "<group>"; };
+		1EFD009D2F43775D00461A41 /* IngredientMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientMatcher.swift; sourceTree = "<group>"; };
+		1EFD009F2F44CE4900461A41 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		41F949C2A1DD683D0170440A /* PlateAnalysisModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlateAnalysisModel.swift; sourceTree = "<group>"; };
+		51795ABC15F7C559F9BFE6BB /* OfflineCacheService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OfflineCacheService.swift; sourceTree = "<group>"; };
+		871510464A784ED1802FA6F4 /* Pods_Ethica.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Ethica.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		A0D7D1EA639E094EFCA103C2 /* Pods-Ethica.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Ethica.debug.xcconfig"; path = "Target Support Files/Pods-Ethica/Pods-Ethica.debug.xcconfig"; sourceTree = "<group>"; };
+		AA1234560001000000000002 /* JainDietValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JainDietValidator.swift; sourceTree = "<group>"; };
+		AABB00010000000000000001 /* EthicaTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EthicaTabBar.swift; sourceTree = "<group>"; };
+		AABB00020000000000000001 /* ToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
+		AABB00030000000000000001 /* SkeletonViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkeletonViews.swift; sourceTree = "<group>"; };
+		AABB00040000000000000001 /* AmbientGradient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientGradient.swift; sourceTree = "<group>"; };
+		AABB00050000000000000001 /* BottomSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomSheet.swift; sourceTree = "<group>"; };
+		AABB00060000000000000001 /* LottieView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LottieView.swift; sourceTree = "<group>"; };
+		B97AF1CF98E58B0CD06C244F /* DebugLogger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DebugLogger.swift; sourceTree = "<group>"; };
+		C20002786DF3231BDBDDF7AE /* Pods-Ethica.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Ethica.release.xcconfig"; path = "Target Support Files/Pods-Ethica/Pods-Ethica.release.xcconfig"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1E481E302EC400D3009F8B99 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				19F2FB86CBF1193E1427466E /* Pods_Ethica.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1E481E3D2EC400D7009F8B99 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1E481E472EC400D7009F8B99 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1E481E2A2EC400D3009F8B99 = {
+			isa = PBXGroup;
+			children = (
+				1E864B702F048666001A2305 /* GoogleService-Info.plist */,
+				1E481E722EC406A7009F8B99 /* Info.plist */,
+				1E481E342EC400D3009F8B99 /* Products */,
+				1E481E6C2EC401F6009F8B99 /* App */,
+				889A8F430B2B893554911108 /* Pods */,
+				8D2F81525CBC76632B37609C /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		1E481E342EC400D3009F8B99 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1E481E332EC400D3009F8B99 /* Ethica.app */,
+				1E481E402EC400D7009F8B99 /* EthicaTests.xctest */,
+				1E481E4A2EC400D7009F8B99 /* EthicaUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		1E481E632EC401F6009F8B99 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				1EFD009D2F43775D00461A41 /* IngredientMatcher.swift */,
+				1EFD00952F40E46500461A41 /* StoreAvailabilityService.swift */,
+				1EFD00932F40E45400461A41 /* LocationService.swift */,
+				1EFD00782F402F4500461A41 /* ImpactService.swift */,
+				1EFD00792F402F4500461A41 /* ReviewService.swift */,
+				AA1234560001000000000002 /* JainDietValidator.swift */,
+				1EFD007A2F402F4500461A41 /* TasteProfileService.swift */,
+				1E84AC802F3E7E36004FD121 /* ImageCache.swift */,
+				1E0314852F06216B00B8B75A /* AIResultsCacheService.swift */,
+				1EDBMGR02F50000000000001 /* DatabaseManager.swift */,
+				1E864B722F048A97001A2305 /* AuthenticationService.swift */,
+				1EEE87952ED677FE00415768 /* ARCameraManager.swift */,
+				1EEE87962ED677FE00415768 /* ProductRecognitionService.swift */,
+				1EEE87972ED677FE00415768 /* VoiceGuidanceService.swift */,
+				1E9C96772ED2662F004BF1D4 /* HistoryService.swift */,
+				1E9C96782ED2662F004BF1D4 /* ImpactCalculator.swift */,
+				1EDB10002EDBAA01001A2B3C /* BarcodeScanner.swift */,
+				1E481E612EC401F6009F8B99 /* NetworkService.swift */,
+				1EDB10022EDBAA02001A2B3C /* OpenFoodFactsClient.swift */,
+				1E481E622EC401F6009F8B99 /* PreferencesStorage.swift */,
+				1EDB10042EDBAA03001A2B3C /* ProductCacheService.swift */,
+				1EDB10062EDBAA04001A2B3C /* ProductDatabaseService.swift */,
+				51795ABC15F7C559F9BFE6BB /* OfflineCacheService.swift */,
+				B97AF1CF98E58B0CD06C244F /* DebugLogger.swift */,
+				1EF832212F54920500FF8412 /* ReplaceAppLogger.swift */,
+				1EF832232F54930B00FF8412 /* PERFORMANCE_IMPROVEMENTS_SUMMARY.md */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		1E481E682EC401F6009F8B99 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				1E6923CB2F7DA28000388697 /* QuickSafetyResultView.swift */,
+				1EFD009F2F44CE4900461A41 /* OnboardingView.swift */,
+				1EFD00992F43774500461A41 /* DisclaimerView.swift */,
+				1EFD009A2F43774500461A41 /* ReportIssueView.swift */,
+				1EFD008D2F4030BF00461A41 /* PrivacyPolicyView.swift */,
+				1EFD008E2F4030BF00461A41 /* TermsOfServiceView.swift */,
+				1EFD008B2F40309100461A41 /* TasteProfileView.swift */,
+				1EFD00832F40307200461A41 /* Components */,
+				1EFD00842F40307200461A41 /* ImpactDashboardView.swift */,
+				1E5163032F29D94C0061EA4B /* ProductComparisonView.swift */,
+				1E5162C72F06FED50061EA4B /* AnimationExtensions.swift */,
+				1E5162E02F16AA010061EA4B /* EthicaAnimations.swift */,
+				1E864B742F048AD2001A2305 /* SignInView.swift */,
+				1E7483E62EFB0D0D0094AA3F /* PlateAnalysisResultView.swift */,
+				1E7483E72EFB0D0D0094AA3F /* PlateCheckContextSheet.swift */,
+				1EEE87A22ED7A14E00415768 /* LiveBarcodeScannerView.swift */,
+				1EEE87A32ED7A14E00415768 /* VisualProductScannerView.swift */,
+				1EEE879B2ED6781B00415768 /* AlternativeProductOverlay.swift */,
+				1EEE879C2ED6781B00415768 /* ARGuideView.swift */,
+				1EEE87912ED677B200415768 /* AROverlayView.swift */,
+				1EEE878F2ED527C800415768 /* MenuAnalysisView.swift */,
+				1E9C96712ED265F8004BF1D4 /* DashboardView.swift */,
+				1E9C96722ED265F8004BF1D4 /* HistoryView.swift */,
+				1E481E642EC401F6009F8B99 /* ImagePicker.swift */,
+				1E481E652EC401F6009F8B99 /* PreferencesView.swift */,
+				1E481E662EC401F6009F8B99 /* ResultsView.swift */,
+				1E9C966F2EC90F06004BF1D4 /* BlurView.swift */,
+				1E481E672EC401F6009F8B99 /* ScannerView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		1E481E6B2EC401F6009F8B99 /* Ethica */ = {
+			isa = PBXGroup;
+			children = (
+				1E5163082F29D9880061EA4B /* Helpers */,
+				1E5162FC2F28719C0061EA4B /* Models */,
+				1E5162EB2F2870200061EA4B /* Components */,
+				1E5162D52F286FD30061EA4B /* Utilities */,
+				1EEE87A02ED781C500415768 /* Intents */,
+				1E481E632EC401F6009F8B99 /* Services */,
+				1E481E682EC401F6009F8B99 /* Views */,
+				1E481E692EC401F6009F8B99 /* ContentView.swift */,
+				1E481E6A2EC401F6009F8B99 /* EthicaApp.swift */,
+				1E9C966D2EC6C7FC004BF1D4 /* Color+Extensions.swift */,
+			);
+			path = Ethica;
+			sourceTree = "<group>";
+		};
+		1E481E6C2EC401F6009F8B99 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				1E481E6B2EC401F6009F8B99 /* Ethica */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		1E5162D52F286FD30061EA4B /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				1E84AC822F3E7E61004FD121 /* Debouncer.swift */,
+				1E84AC7C2F35A13E004FD121 /* HapticManager.swift */,
+				1E5162D02F286FD30061EA4B /* Animation.swift */,
+				1E5162D12F286FD30061EA4B /* ColorPalette.swift */,
+				1E5162D22F286FD30061EA4B /* Spacing.swift */,
+				1E5162D32F286FD30061EA4B /* Theme.swift */,
+				1E5162D42F286FD30061EA4B /* Typography.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		1E5162EB2F2870200061EA4B /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				1E5163052F29D9610061EA4B /* InsightsCard.swift */,
+				1E5162E12F2870200061EA4B /* DesignSystemShowcase.swift */,
+				1E5162E22F2870200061EA4B /* EmptyState.swift */,
+				1E5162E32F2870200061EA4B /* ExpandableSection.swift */,
+				1E5162E42F2870200061EA4B /* GlassCard.swift */,
+				1E5162E52F2870200061EA4B /* LoadingOverlay.swift */,
+				1E5162E62F2870200061EA4B /* PrimaryButton.swift */,
+				1E5162E72F2870200061EA4B /* ProgressBar.swift */,
+				1E5162E82F2870200061EA4B /* ScoreCircle.swift */,
+				1E5162E92F2870200061EA4B /* StatisticCard.swift */,
+				1E5162EA2F2870200061EA4B /* StatusBadge.swift */,
+				AABB00010000000000000001 /* EthicaTabBar.swift */,
+				AABB00020000000000000001 /* ToastView.swift */,
+				AABB00030000000000000001 /* SkeletonViews.swift */,
+				AABB00040000000000000001 /* AmbientGradient.swift */,
+				AABB00050000000000000001 /* BottomSheet.swift */,
+				AABB00060000000000000001 /* LottieView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		1E5162FC2F28719C0061EA4B /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				1EFD00912F40E44400461A41 /* StoreAvailability.swift */,
+				1EFD00722F402F2B00461A41 /* ProductReview.swift */,
+				1EFD00732F402F2B00461A41 /* TasteProfile.swift */,
+				1EFD00742F402F2B00461A41 /* UserImpact.swift */,
+				1E5162F62F28719C0061EA4B /* AnalysisResult.swift */,
+				1E5162F82F28719C0061EA4B /* APIModels.swift */,
+				1E5162F92F28719C0061EA4B /* DetectedProduct.swift */,
+				1E5162FA2F28719C0061EA4B /* ScanHistory.swift */,
+				1E5162FB2F28719C0061EA4B /* UserPreferences.swift */,
+				41F949C2A1DD683D0170440A /* PlateAnalysisModel.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		1E5163082F29D9880061EA4B /* Helpers */ = {
+			isa = PBXGroup;
+			children = (
+				1E5163072F29D9880061EA4B /* ScanHistoryGrouping.swift */,
+			);
+			path = Helpers;
+			sourceTree = "<group>";
+		};
+		1EEE87A02ED781C500415768 /* Intents */ = {
+			isa = PBXGroup;
+			children = (
+				1EEE879F2ED781C500415768 /* ScanProductIntent.swift */,
+			);
+			path = Intents;
+			sourceTree = "<group>";
+		};
+		1EFD00832F40307200461A41 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				1EFD00972F40E47800461A41 /* StoreAvailabilityBadge.swift */,
+				1EFD007E2F40307200461A41 /* AlternativeComparisonCard.swift */,
+				1EFD007F2F40307200461A41 /* AlternativeReviewSummary.swift */,
+				1EFD00802F40307200461A41 /* NutritionComparisonView.swift */,
+				1EFD00812F40307200461A41 /* ReviewCard.swift */,
+				1EFD00822F40307200461A41 /* ReviewSubmissionSheet.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		889A8F430B2B893554911108 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				A0D7D1EA639E094EFCA103C2 /* Pods-Ethica.debug.xcconfig */,
+				C20002786DF3231BDBDDF7AE /* Pods-Ethica.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		8D2F81525CBC76632B37609C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				871510464A784ED1802FA6F4 /* Pods_Ethica.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1E481E322EC400D3009F8B99 /* Ethica */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1E481E542EC400D7009F8B99 /* Build configuration list for PBXNativeTarget "Ethica" */;
+			buildPhases = (
+				DD5FF625E7D1081A58032D78 /* [CP] Check Pods Manifest.lock */,
+				1E481E2F2EC400D3009F8B99 /* Sources */,
+				1E481E302EC400D3009F8B99 /* Frameworks */,
+				1E481E312EC400D3009F8B99 /* Resources */,
+				EFD28DBDEBD1905AF01197D6 /* [CP] Copy Pods Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Ethica;
+			productName = Ethica;
+			productReference = 1E481E332EC400D3009F8B99 /* Ethica.app */;
+			productType = "com.apple.product-type.application";
+		};
+		1E481E3F2EC400D7009F8B99 /* EthicaTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1E481E572EC400D7009F8B99 /* Build configuration list for PBXNativeTarget "EthicaTests" */;
+			buildPhases = (
+				1E481E3C2EC400D7009F8B99 /* Sources */,
+				1E481E3D2EC400D7009F8B99 /* Frameworks */,
+				1E481E3E2EC400D7009F8B99 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1E481E422EC400D7009F8B99 /* PBXTargetDependency */,
+			);
+			name = EthicaTests;
+			productName = EthicaTests;
+			productReference = 1E481E402EC400D7009F8B99 /* EthicaTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		1E481E492EC400D7009F8B99 /* EthicaUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1E481E5A2EC400D7009F8B99 /* Build configuration list for PBXNativeTarget "EthicaUITests" */;
+			buildPhases = (
+				1E481E462EC400D7009F8B99 /* Sources */,
+				1E481E472EC400D7009F8B99 /* Frameworks */,
+				1E481E482EC400D7009F8B99 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1E481E4C2EC400D7009F8B99 /* PBXTargetDependency */,
+			);
+			name = EthicaUITests;
+			productName = EthicaUITests;
+			productReference = 1E481E4A2EC400D7009F8B99 /* EthicaUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1E481E2B2EC400D3009F8B99 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2610;
+				LastUpgradeCheck = 2610;
+				TargetAttributes = {
+					1E481E322EC400D3009F8B99 = {
+						CreatedOnToolsVersion = 26.1.1;
+					};
+					1E481E3F2EC400D7009F8B99 = {
+						CreatedOnToolsVersion = 26.1.1;
+						TestTargetID = 1E481E322EC400D3009F8B99;
+					};
+					1E481E492EC400D7009F8B99 = {
+						CreatedOnToolsVersion = 26.1.1;
+						TestTargetID = 1E481E322EC400D3009F8B99;
+					};
+				};
+			};
+			buildConfigurationList = 1E481E2E2EC400D3009F8B99 /* Build configuration list for PBXProject "Ethica" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 1E481E2A2EC400D3009F8B99;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 1E481E342EC400D3009F8B99 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1E481E322EC400D3009F8B99 /* Ethica */,
+				1E481E3F2EC400D7009F8B99 /* EthicaTests */,
+				1E481E492EC400D7009F8B99 /* EthicaUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1E481E312EC400D3009F8B99 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1E864B712F048666001A2305 /* GoogleService-Info.plist in Resources */,
+				1EF832242F54930B00FF8412 /* PERFORMANCE_IMPROVEMENTS_SUMMARY.md in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1E481E3E2EC400D7009F8B99 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1E481E482EC400D7009F8B99 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		DD5FF625E7D1081A58032D78 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-Ethica-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		EFD28DBDEBD1905AF01197D6 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Ethica/Pods-Ethica-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Ethica/Pods-Ethica-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Ethica/Pods-Ethica-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1E481E2F2EC400D3009F8B99 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AABB00010000000000000002 /* EthicaTabBar.swift in Sources */,
+				AABB00020000000000000002 /* ToastView.swift in Sources */,
+				AABB00030000000000000002 /* SkeletonViews.swift in Sources */,
+				AABB00040000000000000002 /* AmbientGradient.swift in Sources */,
+				AABB00050000000000000002 /* BottomSheet.swift in Sources */,
+				AABB00060000000000000002 /* LottieView.swift in Sources */,
+				1E481E762EC41190009F8B99 /* ImagePicker.swift in Sources */,
+				1E481E772EC41194009F8B99 /* PreferencesView.swift in Sources */,
+				1E9C96792ED2662F004BF1D4 /* HistoryService.swift in Sources */,
+				1E864B732F048A97001A2305 /* AuthenticationService.swift in Sources */,
+				1E9C967A2ED2662F004BF1D4 /* ImpactCalculator.swift in Sources */,
+				1E481E7B2EC411AC009F8B99 /* PreferencesStorage.swift in Sources */,
+				1EEE879D2ED6781B00415768 /* AlternativeProductOverlay.swift in Sources */,
+				1EEE879E2ED6781B00415768 /* ARGuideView.swift in Sources */,
+				1E481E752EC4117C009F8B99 /* ContentView.swift in Sources */,
+				1E481E792EC411A0009F8B99 /* ScannerView.swift in Sources */,
+				1E481E782EC4119A009F8B99 /* ResultsView.swift in Sources */,
+				1EEE87982ED677FE00415768 /* ProductRecognitionService.swift in Sources */,
+				1E5162D82F286FD30061EA4B /* Theme.swift in Sources */,
+				1E5162FD2F28719C0061EA4B /* ScanHistory.swift in Sources */,
+				1EFD008F2F4030BF00461A41 /* TermsOfServiceView.swift in Sources */,
+				1EFD00902F4030BF00461A41 /* PrivacyPolicyView.swift in Sources */,
+				1E5162FE2F28719C0061EA4B /* APIModels.swift in Sources */,
+				1E5162FF2F28719C0061EA4B /* DetectedProduct.swift in Sources */,
+				1EFD00982F40E47800461A41 /* StoreAvailabilityBadge.swift in Sources */,
+				1E5163002F28719C0061EA4B /* UserPreferences.swift in Sources */,
+				1E5163012F28719C0061EA4B /* AnalysisResult.swift in Sources */,
+				1EFD00A02F44CE4900461A41 /* OnboardingView.swift in Sources */,
+				1EFD007B2F402F4500461A41 /* TasteProfileService.swift in Sources */,
+				1EFD007C2F402F4500461A41 /* ImpactService.swift in Sources */,
+				1EFD00942F40E45400461A41 /* LocationService.swift in Sources */,
+				1EFD007D2F402F4500461A41 /* ReviewService.swift in Sources */,
+				AA1234560001000000000001 /* JainDietValidator.swift in Sources */,
+				1E5162DA2F286FD30061EA4B /* Typography.swift in Sources */,
+				1E5162DB2F286FD30061EA4B /* Spacing.swift in Sources */,
+				1E5162DC2F286FD30061EA4B /* Animation.swift in Sources */,
+				1EFD009E2F43775D00461A41 /* IngredientMatcher.swift in Sources */,
+				1E5162DE2F286FD30061EA4B /* ColorPalette.swift in Sources */,
+				1EEE87992ED677FE00415768 /* VoiceGuidanceService.swift in Sources */,
+				1EEE879A2ED677FE00415768 /* ARCameraManager.swift in Sources */,
+				1E84AC7D2F35A13E004FD121 /* HapticManager.swift in Sources */,
+				1E864B752F048AD2001A2305 /* SignInView.swift in Sources */,
+				1E5163092F29D9880061EA4B /* ScanHistoryGrouping.swift in Sources */,
+				1EEE87A42ED7A14E00415768 /* LiveBarcodeScannerView.swift in Sources */,
+				1EEE87A52ED7A14E00415768 /* VisualProductScannerView.swift in Sources */,
+				1E84AC812F3E7E36004FD121 /* ImageCache.swift in Sources */,
+				1EEE87A12ED781C500415768 /* ScanProductIntent.swift in Sources */,
+				1E9C96732ED265F8004BF1D4 /* DashboardView.swift in Sources */,
+				1E84AC832F3E7E61004FD121 /* Debouncer.swift in Sources */,
+				1E9C96742ED265F8004BF1D4 /* HistoryView.swift in Sources */,
+				1E5162C82F06FED50061EA4B /* AnimationExtensions.swift in Sources */,
+				1E5162E12F16AA010061EA4B /* EthicaAnimations.swift in Sources */,
+				1E481E742EC41167009F8B99 /* EthicaApp.swift in Sources */,
+				1EEE87902ED527C800415768 /* MenuAnalysisView.swift in Sources */,
+				1EFD009B2F43774500461A41 /* ReportIssueView.swift in Sources */,
+				1EFD009C2F43774500461A41 /* DisclaimerView.swift in Sources */,
+				1E0314862F06216B00B8B75A /* AIResultsCacheService.swift in Sources */,
+				1EDBMGR12F50000000000001 /* DatabaseManager.swift in Sources */,
+				1E5162EC2F2870200061EA4B /* ProgressBar.swift in Sources */,
+				1E5162ED2F2870200061EA4B /* GlassCard.swift in Sources */,
+				1E5162EE2F2870200061EA4B /* StatusBadge.swift in Sources */,
+				1E5162EF2F2870200061EA4B /* ExpandableSection.swift in Sources */,
+				1E5162F02F2870200061EA4B /* PrimaryButton.swift in Sources */,
+				1E5162F12F2870200061EA4B /* StatisticCard.swift in Sources */,
+				1E5162F22F2870200061EA4B /* EmptyState.swift in Sources */,
+				1E5162F32F2870200061EA4B /* ScoreCircle.swift in Sources */,
+				1EFD00962F40E46500461A41 /* StoreAvailabilityService.swift in Sources */,
+				1E5162F42F2870200061EA4B /* LoadingOverlay.swift in Sources */,
+				1EF832222F54920500FF8412 /* ReplaceAppLogger.swift in Sources */,
+				1E5162F52F2870200061EA4B /* DesignSystemShowcase.swift in Sources */,
+				1EEE87922ED677B200415768 /* AROverlayView.swift in Sources */,
+				1E9C96702EC90F06004BF1D4 /* BlurView.swift in Sources */,
+				1EFD008C2F40309100461A41 /* TasteProfileView.swift in Sources */,
+				1EFD00922F40E44400461A41 /* StoreAvailability.swift in Sources */,
+				1EDB10012EDBAA01001A2B3C /* BarcodeScanner.swift in Sources */,
+				1EFD00752F402F2B00461A41 /* ProductReview.swift in Sources */,
+				1EFD00762F402F2B00461A41 /* TasteProfile.swift in Sources */,
+				1E6923CC2F7DA28000388697 /* QuickSafetyResultView.swift in Sources */,
+				1EFD00852F40307200461A41 /* AlternativeReviewSummary.swift in Sources */,
+				1EFD00862F40307200461A41 /* ImpactDashboardView.swift in Sources */,
+				1EFD00872F40307200461A41 /* NutritionComparisonView.swift in Sources */,
+				1EFD00882F40307200461A41 /* AlternativeComparisonCard.swift in Sources */,
+				1EFD00892F40307200461A41 /* ReviewCard.swift in Sources */,
+				1EFD008A2F40307200461A41 /* ReviewSubmissionSheet.swift in Sources */,
+				1EFD00772F402F2B00461A41 /* UserImpact.swift in Sources */,
+				1E481E7A2EC411A7009F8B99 /* NetworkService.swift in Sources */,
+				1E5163062F29D9610061EA4B /* InsightsCard.swift in Sources */,
+				1EDB10032EDBAA02001A2B3C /* OpenFoodFactsClient.swift in Sources */,
+				1E5163042F29D94C0061EA4B /* ProductComparisonView.swift in Sources */,
+				1E7483E82EFB0D0D0094AA3F /* PlateAnalysisResultView.swift in Sources */,
+				1E7483E92EFB0D0D0094AA3F /* PlateCheckContextSheet.swift in Sources */,
+				1EDB10052EDBAA03001A2B3C /* ProductCacheService.swift in Sources */,
+				1EDB10072EDBAA04001A2B3C /* ProductDatabaseService.swift in Sources */,
+				1E9C966E2EC6C7FC004BF1D4 /* Color+Extensions.swift in Sources */,
+				208F8CB51220F7D924E598A3 /* PlateAnalysisModel.swift in Sources */,
+				EBF94C74727BCB720173E287 /* OfflineCacheService.swift in Sources */,
+				E2604009384361513636C35C /* DebugLogger.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1E481E3C2EC400D7009F8B99 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1E481E462EC400D7009F8B99 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1E481E422EC400D7009F8B99 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1E481E322EC400D3009F8B99 /* Ethica */;
+			targetProxy = 1E481E412EC400D7009F8B99 /* PBXContainerItemProxy */;
+		};
+		1E481E4C2EC400D7009F8B99 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1E481E322EC400D3009F8B99 /* Ethica */;
+			targetProxy = 1E481E4B2EC400D7009F8B99 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1E481E522EC400D7009F8B99 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = H643GJUZ7R;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		1E481E532EC400D7009F8B99 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = H643GJUZ7R;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		1E481E552EC400D7009F8B99 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A0D7D1EA639E094EFCA103C2 /* Pods-Ethica.debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D6T42397V9;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ArhamJain.ethica.Ethica;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.1;
+			};
+			name = Debug;
+		};
+		1E481E562EC400D7009F8B99 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = C20002786DF3231BDBDDF7AE /* Pods-Ethica.release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D6T42397V9;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ArhamJain.ethica.Ethica;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.1;
+			};
+			name = Release;
+		};
+		1E481E582EC400D7009F8B99 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = H643GJUZ7R;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ArhamJain.ethica.EthicaTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ethica.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ethica";
+				XROS_DEPLOYMENT_TARGET = 26.1;
+			};
+			name = Debug;
+		};
+		1E481E592EC400D7009F8B99 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = H643GJUZ7R;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ArhamJain.ethica.EthicaTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ethica.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ethica";
+				XROS_DEPLOYMENT_TARGET = 26.1;
+			};
+			name = Release;
+		};
+		1E481E5B2EC400D7009F8B99 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = H643GJUZ7R;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ArhamJain.ethica.EthicaUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_TARGET_NAME = Ethica;
+				XROS_DEPLOYMENT_TARGET = 26.1;
+			};
+			name = Debug;
+		};
+		1E481E5C2EC400D7009F8B99 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = H643GJUZ7R;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ArhamJain.ethica.EthicaUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_TARGET_NAME = Ethica;
+				XROS_DEPLOYMENT_TARGET = 26.1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1E481E2E2EC400D3009F8B99 /* Build configuration list for PBXProject "Ethica" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1E481E522EC400D7009F8B99 /* Debug */,
+				1E481E532EC400D7009F8B99 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1E481E542EC400D7009F8B99 /* Build configuration list for PBXNativeTarget "Ethica" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1E481E552EC400D7009F8B99 /* Debug */,
+				1E481E562EC400D7009F8B99 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1E481E572EC400D7009F8B99 /* Build configuration list for PBXNativeTarget "EthicaTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1E481E582EC400D7009F8B99 /* Debug */,
+				1E481E592EC400D7009F8B99 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1E481E5A2EC400D7009F8B99 /* Build configuration list for PBXNativeTarget "EthicaUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1E481E5B2EC400D7009F8B99 /* Debug */,
+				1E481E5C2EC400D7009F8B99 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 1E481E2B2EC400D3009F8B99 /* Project object */;
+}

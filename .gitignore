@@ -1,0 +1,54 @@
+# macOS
+.DS_Store
+._*
+
+# Xcode user data
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+
+# Xcode build artifacts
+DerivedData/
+build/
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.xcarchive/
+*.xcresult/
+
+# Xcode runtime export artifacts
+*.xcappdata/
+
+# Swift Package Manager (if introduced later)
+.swiftpm/
+Package.resolved
+Packages/
+
+# CocoaPods
+Pods/
+
+# Logs
+*.log
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+
+# Python (repo helper scripts)
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Secrets / credentials (keep local only)
+GoogleService-Info.plist
+gemini-key.json
+gemini-service-account.json
+service-account.json
+service-account-key.json
+ethica-service-account.json
