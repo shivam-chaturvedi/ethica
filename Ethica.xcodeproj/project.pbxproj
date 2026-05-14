@@ -73,7 +73,7 @@
 		1EEE87A42ED7A14E00415768 /* LiveBarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE87A22ED7A14E00415768 /* LiveBarcodeScannerView.swift */; };
 		1EEE87A52ED7A14E00415768 /* VisualProductScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE87A32ED7A14E00415768 /* VisualProductScannerView.swift */; };
 		1EF832222F54920500FF8412 /* ReplaceAppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF832212F54920500FF8412 /* ReplaceAppLogger.swift */; };
-		1EF832242F54930B00FF8412 /* PERFORMANCE_IMPROVEMENTS_SUMMARY.md in Resources */ = {isa = PBXBuildFile; fileRef = 1EF832232F54930B00FF8412 /* PERFORMANCE_IMPROVEMENTS_SUMMARY.md */; };
+		
 		1EFD00752F402F2B00461A41 /* ProductReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00722F402F2B00461A41 /* ProductReview.swift */; };
 		1EFD00762F402F2B00461A41 /* TasteProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00732F402F2B00461A41 /* TasteProfile.swift */; };
 		1EFD00772F402F2B00461A41 /* UserImpact.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00742F402F2B00461A41 /* UserImpact.swift */; };
@@ -196,7 +196,7 @@
 		1EEE87A22ED7A14E00415768 /* LiveBarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBarcodeScannerView.swift; sourceTree = "<group>"; };
 		1EEE87A32ED7A14E00415768 /* VisualProductScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualProductScannerView.swift; sourceTree = "<group>"; };
 		1EF832212F54920500FF8412 /* ReplaceAppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplaceAppLogger.swift; sourceTree = "<group>"; };
-		1EF832232F54930B00FF8412 /* PERFORMANCE_IMPROVEMENTS_SUMMARY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PERFORMANCE_IMPROVEMENTS_SUMMARY.md; sourceTree = "<group>"; };
+		
 		1EFD00722F402F2B00461A41 /* ProductReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductReview.swift; sourceTree = "<group>"; };
 		1EFD00732F402F2B00461A41 /* TasteProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasteProfile.swift; sourceTree = "<group>"; };
 		1EFD00742F402F2B00461A41 /* UserImpact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserImpact.swift; sourceTree = "<group>"; };
@@ -311,7 +311,7 @@
 				51795ABC15F7C559F9BFE6BB /* OfflineCacheService.swift */,
 				B97AF1CF98E58B0CD06C244F /* DebugLogger.swift */,
 				1EF832212F54920500FF8412 /* ReplaceAppLogger.swift */,
-				1EF832232F54930B00FF8412 /* PERFORMANCE_IMPROVEMENTS_SUMMARY.md */,
+				
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -585,7 +585,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1E864B712F048666001A2305 /* GoogleService-Info.plist in Resources */,
-				1EF832242F54930B00FF8412 /* PERFORMANCE_IMPROVEMENTS_SUMMARY.md in Resources */,
+				
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
