@@ -176,6 +176,23 @@ class ProductDatabaseService: ObservableObject {
                                     userInfo: [NSLocalizedDescriptionKey: "All retry attempts failed"])
     }
 
+    private func withTimeout<T>(seconds: Double, operation: @escaping () async -> T) async -> (value: T?, timedOut: Bool) {
+        await withTaskGroup(of: (T?, Bool).self) { group in
+            group.addTask {
+                let value = await operation()
+                return (value, false)
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                return (nil, true)
+            }
+
+            let first = await group.next() ?? (nil, true)
+            group.cancelAll()
+            return first
+        }
+    }
+
     /// Apply client-side Jain diet validation if user has Jain selected
     private func applyJainValidation(_ result: AnalysisResult, preferences: UserPreferences) -> AnalysisResult {
         let allDiets = Array(preferences.selectedDiets) + preferences.customDiets
@@ -227,18 +244,10 @@ class ProductDatabaseService: ObservableObject {
 
             // STEP 3: Quick allergen check (2-4s AI safety verdict)
             if !ingredients.isEmpty {
-                let safetyResult = await NetworkService.shared.quickAllergenCheck(
-                    ingredients: ingredients,
-                    preferences: preferences,
-                    barcode: barcode,
-                    productName: offProduct.productNameEn ?? offProduct.productName,
-                    openfoodfactsData: rawOFFJSON
-                )
-
-                // Build preliminary result: OFF data + AI safety verdict
+                // Return OFF-based result immediately for speed; run Gemini safety + enrichment in background.
                 var result = buildPreliminaryResult(
                     product: offProduct, barcode: barcode,
-                    preferences: preferences, safetyResult: safetyResult,
+                    preferences: preferences, safetyResult: nil,
                     rawOFFJSON: rawOFFJSON
                 )
                 // Apply same safety nets as comprehensive path:
@@ -249,9 +258,9 @@ class ProductDatabaseService: ObservableObject {
                 // 3) Jain validation
                 result = applyJainValidation(result, preferences: preferences)
 
-                await updateProgress(0.9, step: "Safety verified! Enriching...")
+                await updateProgress(0.9, step: "Enhancing in background...")
 
-                // STEP 4: Fire full enrichment in background (cancel previous if rapid re-scan)
+                // STEP 4a: Fire full enrichment in background (cancel previous if rapid re-scan)
                 activeEnrichmentTask?.cancel()
                 let capturedProduct = offProduct
                 let capturedRawJSON = rawOFFJSON
@@ -262,8 +271,36 @@ class ProductDatabaseService: ObservableObject {
                     )
                 }
 
-                await updateProgress(1.0, step: "Safety check complete!")
-                return result  // User sees safety verdict NOW (2-4s)
+                // STEP 4b: Run Gemini quick safety verdict in background; publish when ready.
+                Task { [weak self] in
+                    guard let self else { return }
+                    let safetyLookup = await self.withTimeout(seconds: 12) {
+                        await NetworkService.shared.quickAllergenCheck(
+                            ingredients: ingredients,
+                            preferences: preferences,
+                            barcode: barcode,
+                            productName: capturedProduct.productNameEn ?? capturedProduct.productName,
+                            openfoodfactsData: capturedRawJSON
+                        )
+                    }
+                    guard !Task.isCancelled else { return }
+                    guard let safety = safetyLookup.value ?? nil else { return }
+
+                    var updated = self.buildPreliminaryResult(
+                        product: capturedProduct,
+                        barcode: barcode,
+                        preferences: preferences,
+                        safetyResult: safety,
+                        rawOFFJSON: capturedRawJSON
+                    )
+                    updated = self.mergeAllergens(into: updated, product: capturedProduct, preferences: preferences)
+                    updated = self.mergeDietaryViolations(into: updated, product: capturedProduct, preferences: preferences)
+                    updated = self.applyJainValidation(updated, preferences: preferences)
+                    ProductDatabaseService.enhancedResultSubject.send(updated)
+                }
+
+                await updateProgress(1.0, step: "Result ready")
+                return result  // User sees OFF-based result immediately
             }
 
             // No ingredients from OFF — return nil to trigger visual scanner / OCR
@@ -324,6 +361,120 @@ class ProductDatabaseService: ObservableObject {
 
         await updateProgress(1.0, step: "Product not found")
         logger.warning("⚠️ Neither OFF nor AI could identify barcode: \(barcode)")
+        return nil
+    }
+
+    /// Fast barcode lookup for the live scanner — returns in a few seconds max.
+    /// Skips slow backend streaming so the UI can show results or the not-found flow promptly.
+    func lookupBarcodeForScan(_ barcode: String, preferences: UserPreferences) async -> AnalysisResult? {
+        logger.debug("⚡ Fast scan lookup: \(barcode)")
+
+        if let cachedAI = await aiCache.fetch(barcode: barcode, preferences: preferences) {
+            logger.debug("⚡ AI cache hit (scan): \(barcode)")
+            return cachedAI
+        }
+
+        if let offResult = await openFoodFactsClient.fetchProduct(barcode: barcode) {
+            let offProduct = offResult.product
+            let rawOFFJSON = offResult.rawJSON
+            logger.debug("✅ OpenFoodFacts hit (scan): \(barcode)")
+
+            let ingredients = openFoodFactsClient.extractIngredients(from: offProduct)
+            await cacheService.save(
+                barcode: barcode,
+                productName: offProduct.productNameEn ?? offProduct.productName ?? "Unknown Product",
+                ingredients: ingredients,
+                allergens: offProduct.allergens,
+                ethicalScore: nil,
+                ethicalSummary: openFoodFactsClient.getEthicalSummary(from: offProduct)
+            )
+
+            var result = buildPreliminaryResult(
+                product: offProduct,
+                barcode: barcode,
+                preferences: preferences,
+                safetyResult: nil,
+                rawOFFJSON: rawOFFJSON
+            )
+            result = mergeAllergens(into: result, product: offProduct, preferences: preferences)
+            result = mergeDietaryViolations(into: result, product: offProduct, preferences: preferences)
+            result = applyJainValidation(result, preferences: preferences)
+
+            // Enrich in background — do not block the scanner UI.
+            activeEnrichmentTask?.cancel()
+            let capturedProduct = offProduct
+            let capturedRawJSON = rawOFFJSON
+            activeEnrichmentTask = Task { [weak self] in
+                await self?.runBackendEnrichment(
+                    product: capturedProduct,
+                    barcode: barcode,
+                    preferences: preferences,
+                    rawOFFJSON: capturedRawJSON
+                )
+            }
+
+            if !ingredients.isEmpty {
+                Task { [weak self] in
+                    guard let self else { return }
+                    let safetyLookup = await self.withTimeout(seconds: 12) {
+                        await NetworkService.shared.quickAllergenCheck(
+                            ingredients: ingredients,
+                            preferences: preferences,
+                            barcode: barcode,
+                            productName: capturedProduct.productNameEn ?? capturedProduct.productName,
+                            openfoodfactsData: capturedRawJSON
+                        )
+                    }
+                    guard let safety = safetyLookup.value ?? nil else { return }
+                    var updated = self.buildPreliminaryResult(
+                        product: capturedProduct,
+                        barcode: barcode,
+                        preferences: preferences,
+                        safetyResult: safety,
+                        rawOFFJSON: capturedRawJSON
+                    )
+                    updated = self.mergeAllergens(into: updated, product: capturedProduct, preferences: preferences)
+                    updated = self.mergeDietaryViolations(into: updated, product: capturedProduct, preferences: preferences)
+                    updated = self.applyJainValidation(updated, preferences: preferences)
+                    ProductDatabaseService.enhancedResultSubject.send(updated)
+                }
+            }
+
+            return result
+        }
+
+        if let cached = await cacheService.fetch(barcode: barcode) {
+            logger.debug("💾 SQLite cache hit (scan): \(cached.productName)")
+            return AnalysisResult(
+                productName: cached.productName,
+                overallScore: Double(cached.ethicalScore ?? 50),
+                isSafe: true,
+                confidence: 30,
+                confidenceFactors: ["Offline cache — limited data"],
+                violations: [],
+                warnings: ["⚠️ Using cached offline data — scan again for full analysis"],
+                cautionWarnings: [],
+                ingredients: cached.ingredients,
+                detectedAllergens: [],
+                detectionEvidence: [],
+                healthScore: Double(cached.ethicalScore ?? 50),
+                environmentalScore: 50,
+                co2Emissions: 0,
+                waterUsage: 0,
+                animalImpact: "Unknown",
+                landUse: "Unknown",
+                nutritionalHighlights: [],
+                healthConcerns: [],
+                healthBenefits: [],
+                recommendations: [],
+                alternatives: [],
+                environmentalBreakdown: [],
+                sourceBarcode: barcode,
+                sourceType: "offline_cache"
+            )
+        }
+
+        logger.warning("⚠️ Fast scan miss — product not in database: \(barcode)")
         return nil
     }
 

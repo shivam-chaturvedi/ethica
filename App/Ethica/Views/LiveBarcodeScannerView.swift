@@ -9,6 +9,7 @@ import AVFoundation
 import Vision
 import Combine
 import AudioToolbox
+import PhotosUI
 
 struct LiveBarcodeScannerView: View {
     @ObservedObject var preferencesManager: PreferencesManager
@@ -21,10 +22,26 @@ struct LiveBarcodeScannerView: View {
     @State private var showResults = false
     @State private var lastScannedBarcode = ""
     @State private var scanCooldown = false
-    @State private var showNotFound = false
     @State private var notFoundBarcode = ""
+    @State private var notFoundPreviewImage: UIImage?
+    @State private var scanPreviewImage: UIImage?
     @State private var debounceTimer: Timer?
     @State private var showVisualScanner = false
+    @State private var showProductNotFoundFlow = false
+
+    // Barcode-from-image states
+    @State private var showBarcodeImagePicker = false
+    @State private var pickedBarcodeImage: UIImage?
+    @State private var pickedBarcodeItem: PhotosPickerItem?
+    @State private var isDecodingPickedImage = false
+    @State private var activeAlert: ScannerAlert?
+    @State private var activeBarcodeLookupTask: Task<Void, Never>?
+    @State private var activeBarcodeDecodeTask: Task<Void, Never>?
+    @State private var lookupDeadlineTask: Task<Void, Never>?
+
+    // Manual barcode entry
+    @State private var manualBarcodeText = ""
+    @FocusState private var isManualBarcodeFocused: Bool
 
     // Ingredient photo capture states
     @State private var showIngredientCapture = false
@@ -49,6 +66,23 @@ struct LiveBarcodeScannerView: View {
         let imageUrl: String?
         let nutriscoreGrade: String?
     }
+
+    enum ScannerAlert: Identifiable {
+        case cameraAccess
+        case pickedImageError(String)
+        case lookupTimeout
+
+        var id: String {
+            switch self {
+            case .cameraAccess:
+                return "cameraAccess"
+            case .pickedImageError:
+                return "pickedImageError"
+            case .lookupTimeout:
+                return "lookupTimeout"
+            }
+        }
+    }
     
     var body: some View {
         ZStack {
@@ -68,6 +102,19 @@ struct LiveBarcodeScannerView: View {
                     }
                     
                     Spacer()
+
+                    Button(action: {
+                        pickedBarcodeImage = nil
+                        pickedBarcodeItem = nil
+                        ToastManager.shared.info("Select a photo, then tap Done.")
+                        showBarcodeImagePicker = true
+                    }) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 26))
+                            .foregroundColor(.white)
+                            .shadow(radius: 4)
+                    }
+                    .accessibilityLabel("Pick barcode image")
                     
                     if scanner.torchAvailable {
                         Button(action: { scanner.toggleTorch() }) {
@@ -122,58 +169,6 @@ struct LiveBarcodeScannerView: View {
                             insertion: .scale(scale: 0.9).combined(with: .opacity),
                             removal: .scale(scale: 1.05).combined(with: .opacity)
                         ))
-                    } else if showNotFound {
-                        // Product not found — show options to scan ingredients or try again
-                        VStack(spacing: 16) {
-                            Image(systemName: "exclamationmark.magnifyingglass")
-                                .font(.system(size: 44))
-                                .foregroundColor(Theme.warning)
-
-                            Text("Product Not in Database")
-                                .font(.system(size: 17, weight: .bold))
-                                .foregroundColor(.white)
-
-                            Text("Scan the ingredient list for a quick safety check")
-                                .font(.system(size: 14))
-                                .foregroundColor(.white.opacity(0.8))
-                                .multilineTextAlignment(.center)
-
-                            // Primary: Scan Ingredients
-                            Button {
-                                showNotFound = false
-                                showIngredientCapture = true
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "camera.fill")
-                                    Text("Scan Ingredients")
-                                }
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(Theme.primary)
-                                .cornerRadius(12)
-                            }
-
-                            // Secondary: Try Another Barcode
-                            Button {
-                                showNotFound = false
-                                lastScannedBarcode = ""
-                                scanCooldown = false
-                            } label: {
-                                Text("Try Another Barcode")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.7))
-                            }
-                        }
-                        .padding(24)
-                        .frame(maxWidth: 300)
-                        .background(Color.black.opacity(0.85))
-                        .cornerRadius(16)
-                        .transition(.asymmetric(
-                            insertion: .scale(scale: 0.8).combined(with: .opacity),
-                            removal: .scale(scale: 1.1).combined(with: .opacity)
-                        ))
                     } else {
                         VStack(spacing: 12) {
                             Image(systemName: "barcode.viewfinder")
@@ -195,19 +190,24 @@ struct LiveBarcodeScannerView: View {
                 }
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: productPreview != nil)
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isAnalyzing)
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showNotFound)
-                
                 Spacer()
                 
-                // Instruction
-                Text(showNotFound ? "Choose an option above" : "Align barcode within frame")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(Color.black.opacity(0.6))
-                    .cornerRadius(20)
-                    .padding(.bottom, 32)
+                VStack(spacing: 12) {
+                    if !isManualBarcodeFocused {
+                        Text("Align barcode within frame")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(Color.black.opacity(0.6))
+                            .cornerRadius(20)
+                    }
+
+                    if !isAnalyzing && !isShowingLoadingOverlay && !isDecodingPickedImage {
+                        manualBarcodeEntrySection
+                    }
+                }
+                .padding(.bottom, 16)
             }
             
             // Scanning Reticle
@@ -261,6 +261,65 @@ struct LiveBarcodeScannerView: View {
                     removal: .scale(scale: 1.05).combined(with: .opacity)
                 ))
                 .zIndex(100)
+                .overlay(alignment: .bottom) {
+                    Button {
+                        cancelCurrentOperation()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "stop.circle.fill")
+                            Text("Stop")
+                        }
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Color.black.opacity(0.35))
+                        .cornerRadius(12)
+                    }
+                    .padding(.bottom, 40)
+                }
+            }
+
+            if isDecodingPickedImage {
+                ZStack {
+                    Color.black.opacity(0.7)
+                        .ignoresSafeArea()
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.4)
+                            .tint(.white)
+                        Text("Reading barcode from image…")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+
+                        Button {
+                            cancelCurrentOperation()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "stop.circle.fill")
+                                Text("Stop")
+                            }
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(Color.white.opacity(0.18))
+                            .cornerRadius(12)
+                        }
+                    }
+                    .padding(24)
+                    .background(Color.black.opacity(0.75))
+                    .cornerRadius(16)
+                }
+                .zIndex(200)
+            }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    isManualBarcodeFocused = false
+                }
             }
         }
         .onAppear {
@@ -269,6 +328,12 @@ struct LiveBarcodeScannerView: View {
         .onDisappear {
             debounceTimer?.invalidate()
             debounceTimer = nil
+            lookupDeadlineTask?.cancel()
+            lookupDeadlineTask = nil
+            activeBarcodeLookupTask?.cancel()
+            activeBarcodeLookupTask = nil
+            activeBarcodeDecodeTask?.cancel()
+            activeBarcodeDecodeTask = nil
             scanner.stopScanning()
         }
         .onChange(of: scanner.detectedBarcode) { oldValue, newValue in
@@ -288,12 +353,96 @@ struct LiveBarcodeScannerView: View {
                 scanBarcode(barcode)
             }
         }
+        .onChange(of: pickedBarcodeItem) { _, newItem in
+            guard let newItem else { return }
+            Task {
+                await MainActor.run {
+                    ToastManager.shared.info("Loading selected image…")
+                    isDecodingPickedImage = true
+                }
+
+                let loadAttempt = await withTimeout(seconds: 12, showsTimeoutAlert: false) { () async -> Data? in
+                    try? await newItem.loadTransferable(type: Data.self)
+                }
+
+                if loadAttempt.timedOut {
+                    await MainActor.run {
+                        isDecodingPickedImage = false
+                        ToastManager.shared.warning("Image loading is taking too long. Try another photo.")
+                        pickedBarcodeItem = nil
+                    }
+                    return
+                }
+
+                guard let data = loadAttempt.value ?? nil,
+                      let image = UIImage(data: data) else {
+                    await MainActor.run {
+                        isDecodingPickedImage = false
+                        ToastManager.shared.warning("Couldn’t load that image. Try another one.")
+                        pickedBarcodeItem = nil
+                    }
+                    return
+                }
+
+                await MainActor.run {
+                    isDecodingPickedImage = false
+                    scanPreviewImage = image
+                    pickedBarcodeImage = image
+                    pickedBarcodeItem = nil
+                }
+            }
+        }
+        .onChange(of: pickedBarcodeImage) { _, newImage in
+            guard let image = newImage else { return }
+            guard !isAnalyzing else { return }
+
+            scanCooldown = true
+            lastScannedBarcode = ""
+            showProductNotFoundFlow = false
+            scanPreviewImage = image
+            pickedBarcodeImage = nil
+
+            activeBarcodeDecodeTask?.cancel()
+            activeBarcodeDecodeTask = Task {
+                await MainActor.run { isDecodingPickedImage = true }
+
+                let preparedImage = NetworkService.shared.resizeImagePublic(image, maxSize: 2000)
+                let decodeAttempt = await withTimeout(seconds: 12, showsTimeoutAlert: false) {
+                    await BarcodeScanner().detectBestProductBarcode(in: preparedImage)
+                }
+
+                await MainActor.run { isDecodingPickedImage = false }
+
+                if Task.isCancelled { return }
+
+                if decodeAttempt.timedOut {
+                    await MainActor.run {
+                        scanCooldown = false
+                        ToastManager.shared.warning("Couldn’t read a barcode from that image. Try a clearer photo.")
+                    }
+                    return
+                }
+
+                if let decoded = decodeAttempt.value ?? nil {
+                    await MainActor.run {
+                        scanCooldown = false
+                        scanBarcode(decoded)
+                    }
+                } else {
+                    await MainActor.run {
+                        scanCooldown = false
+                        ToastManager.shared.warning("Looks like a barcode isn’t there. Try a clearer photo with the barcode fully visible.")
+                    }
+                }
+            }
+        }
         .fullScreenCover(isPresented: $showResults) {
             if let result = analysisResult {
                 ResultsView(result: result, onDismiss: {
                     showResults = false
                     analysisResult = nil
                     lastScannedBarcode = ""
+                    manualBarcodeText = ""
 
                     // Resume scanning after short delay
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -331,6 +480,27 @@ struct LiveBarcodeScannerView: View {
                 }
             )
         }
+        .sheet(isPresented: $showProductNotFoundFlow, onDismiss: {
+            notFoundPreviewImage = nil
+            scanPreviewImage = nil
+            scanCooldown = false
+        }) {
+            MissingProductSubmissionView(
+                barcode: notFoundBarcode.isEmpty ? lastScannedBarcode : notFoundBarcode,
+                previewImage: notFoundPreviewImage,
+                onSkip: {
+                    showProductNotFoundFlow = false
+                    notFoundPreviewImage = nil
+                    scanPreviewImage = nil
+                    scanCooldown = false
+                },
+                onScanIngredients: {
+                    showProductNotFoundFlow = false
+                    showIngredientCapture = true
+                }
+            )
+        }
+        .photosPicker(isPresented: $showBarcodeImagePicker, selection: $pickedBarcodeItem, matching: .images)
         .fullScreenCover(isPresented: $showQuickResults) {
             if let safetyResult = quickSafetyResult {
                 QuickSafetyResultView(
@@ -371,18 +541,114 @@ struct LiveBarcodeScannerView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: isCheckingSafety)
-        .alert("Camera Access Required", isPresented: $scanner.cameraPermissionDenied) {
-            Button("Open Settings") {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
-                }
+        .onChange(of: scanner.cameraPermissionDenied) { _, denied in
+            if denied {
+                activeAlert = .cameraAccess
             }
-            Button("Cancel", role: .cancel) { dismiss() }
-        } message: {
-            Text("Ethica needs camera access to scan product barcodes. Please enable it in Settings.")
+        }
+        .alert(item: $activeAlert) { alert in
+            switch alert {
+            case .cameraAccess:
+                return Alert(
+                    title: Text("Camera Access Required"),
+                    message: Text("Ethica needs camera access to scan product barcodes. Please enable it in Settings."),
+                    primaryButton: .default(Text("Open Settings"), action: {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    }),
+                    secondaryButton: .cancel(Text("Cancel"), action: {
+                        dismiss()
+                    })
+                )
+            case .pickedImageError(let message):
+                return Alert(
+                    title: Text("Couldn’t Read Barcode"),
+                    message: Text(message),
+                    dismissButton: .default(Text("OK"))
+                )
+            case .lookupTimeout:
+                return Alert(
+                    title: Text("Taking Too Long"),
+                    message: Text("The product lookup is taking longer than expected. Please check your connection and try again."),
+                    dismissButton: .default(Text("OK"), action: {
+                        isShowingLoadingOverlay = false
+                        isAnalyzing = false
+                        scanCooldown = false
+                        lastScannedBarcode = ""
+                    })
+                )
+            }
         }
     }
     
+    // MARK: - Manual Barcode Entry
+
+    private var manualBarcodeEntrySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Or enter barcode manually")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.white.opacity(0.85))
+
+            HStack(spacing: 10) {
+                TextField("EAN / UPC (8–14 digits)", text: $manualBarcodeText)
+                    .keyboardType(.numberPad)
+                    .textContentType(.oneTimeCode)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .focused($isManualBarcodeFocused)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.15))
+                    .cornerRadius(12)
+                    .foregroundColor(.white)
+                    .tint(Theme.primary)
+                    .submitLabel(.search)
+                    .onSubmit(submitManualBarcode)
+                    .onChange(of: manualBarcodeText) { _, newValue in
+                        let digitsOnly = newValue.filter(\.isNumber)
+                        if digitsOnly != newValue {
+                            manualBarcodeText = digitsOnly
+                        }
+                    }
+
+                Button(action: submitManualBarcode) {
+                    Text("Look up")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(canSubmitManualBarcode ? Theme.primary : Color.white.opacity(0.25))
+                        .cornerRadius(12)
+                }
+                .disabled(!canSubmitManualBarcode)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
+        .background(Color.black.opacity(0.7))
+        .cornerRadius(16)
+        .padding(.horizontal, 16)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Manual barcode entry")
+    }
+
+    private var canSubmitManualBarcode: Bool {
+        let digits = manualBarcodeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return digits.count >= 8 && !isAnalyzing && !isDecodingPickedImage
+    }
+
+    private func submitManualBarcode() {
+        let barcode = manualBarcodeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard canSubmitManualBarcode else { return }
+
+        isManualBarcodeFocused = false
+        scanCooldown = false
+        lastScannedBarcode = ""
+        scanBarcode(barcode)
+    }
+
     // MARK: - Nutriscore Color Helper
     private func nutriscoreColor(_ grade: String) -> Color {
         switch grade.uppercased() {
@@ -440,55 +706,116 @@ struct LiveBarcodeScannerView: View {
             AppLogger.warning("⚠️ Already analyzing, skipping")
             return 
         }
+
+        let normalizedBarcode = barcode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isLikelyProductBarcode(normalizedBarcode) else {
+            ToastManager.shared.warning("Looks like a barcode isn’t there (or it’s unsupported). Try an EAN/UPC barcode.")
+            scanCooldown = false
+            lastScannedBarcode = ""
+            return
+        }
         
-        AppLogger.debug("🚀 Starting analysis for: \(barcode)")
+        AppLogger.debug("🚀 Starting analysis for: \(normalizedBarcode)")
         isAnalyzing = true
         scanCooldown = true
-        lastScannedBarcode = barcode
+        lastScannedBarcode = normalizedBarcode
         productPreview = nil
-        showNotFound = false
+        showProductNotFoundFlow = false
         
-        // Start Animation
         isShowingLoadingOverlay = true
-        loadingMode = .product // Use .product for Green color
-        simulateAnalysisProgress()
+        loadingMode = .barcode
+        loadingProgress = 0.2
+        loadingStep = 1
         
         // 🔊 Play scan sound + haptic feedback
         AudioServicesPlaySystemSound(1057) // Scanner beep
         HapticManager.shared.trigger(.success)
 
-        Task {
-            AppLogger.debug("📡 Starting barcode lookup (SSE streaming)...")
+        lookupDeadlineTask?.cancel()
+        lookupDeadlineTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
+            guard isAnalyzing || isShowingLoadingOverlay else { return }
+            AppLogger.info("⏱️ Barcode lookup deadline — showing not-found flow")
+            activeBarcodeLookupTask?.cancel()
+            presentProductNotFound(barcode: normalizedBarcode)
+        }
 
-            if let result = await productDatabase.lookupBarcode(barcode, preferences: preferencesManager.preferences) {
+        activeBarcodeLookupTask?.cancel()
+        activeBarcodeLookupTask = Task { @MainActor in
+            AppLogger.debug("📡 Starting fast barcode lookup...")
+
+            if Task.isCancelled { return }
+
+            let resolvedResult = await productDatabase.lookupBarcodeForScan(
+                normalizedBarcode,
+                preferences: preferencesManager.preferences
+            )
+
+            lookupDeadlineTask?.cancel()
+            lookupDeadlineTask = nil
+
+            if Task.isCancelled { return }
+
+            if let result = resolvedResult {
                 AppLogger.debug("✅ Got result: \(result.productName)")
-                // 💾 SAVE TO HISTORY immediately after successful barcode lookup
                 let scanHistory = ScanHistory(from: result)
-                AppLogger.debug("💾 [LiveBarcodeScanner] Saving barcode scan to history: \(scanHistory.productName)")
                 HistoryService.shared.saveScan(scanHistory)
-                AppLogger.debug("💾 [LiveBarcodeScanner] Saved barcode scan successfully")
                 
-                await MainActor.run {
-                    AppLogger.debug("🎯 Setting result and showing results screen")
-                    isShowingLoadingOverlay = false
-                    analysisResult = result
-                    isAnalyzing = false
-                    productPreview = nil
-                    showResults = true
-                }
+                isShowingLoadingOverlay = false
+                analysisResult = result
+                isAnalyzing = false
+                productPreview = nil
+                showResults = true
             } else {
-                AppLogger.info("📷 Barcode not in database — showing ingredient scan option")
-                await MainActor.run {
-                    isShowingLoadingOverlay = false
-                    isAnalyzing = false
-                    productPreview = nil
-                    notFoundBarcode = barcode
-                    showNotFound = true
-
-                    HapticManager.shared.trigger(.warning)
-                }
+                AppLogger.info("📷 Barcode not in database — showing contribution flow")
+                presentProductNotFound(barcode: normalizedBarcode)
             }
         }
+    }
+
+    @MainActor
+    private func presentProductNotFound(barcode: String) {
+        lookupDeadlineTask?.cancel()
+        lookupDeadlineTask = nil
+        isShowingLoadingOverlay = false
+        isAnalyzing = false
+        scanCooldown = false
+        productPreview = nil
+        notFoundBarcode = barcode
+        notFoundPreviewImage = scanPreviewImage
+        showProductNotFoundFlow = true
+        HapticManager.shared.trigger(.warning)
+    }
+
+    private func cancelCurrentOperation() {
+        activeBarcodeDecodeTask?.cancel()
+        activeBarcodeDecodeTask = nil
+        lookupDeadlineTask?.cancel()
+        lookupDeadlineTask = nil
+        activeBarcodeLookupTask?.cancel()
+        activeBarcodeLookupTask = nil
+
+        isDecodingPickedImage = false
+        isShowingLoadingOverlay = false
+        isAnalyzing = false
+        scanCooldown = false
+        showProductNotFoundFlow = false
+        lastScannedBarcode = ""
+        notFoundPreviewImage = nil
+        scanPreviewImage = nil
+        pickedBarcodeImage = nil
+        pickedBarcodeItem = nil
+        isManualBarcodeFocused = false
+
+        ToastManager.shared.info("Stopped. You can try again.")
+    }
+
+    private func isLikelyProductBarcode(_ barcode: String) -> Bool {
+        // OpenFoodFacts expects numeric EAN/UPC; accept common lengths.
+        guard !barcode.isEmpty else { return false }
+        guard barcode.allSatisfy({ $0.isNumber }) else { return false }
+        return [8, 12, 13, 14].contains(barcode.count)
     }
 
     private func runFullAnalysisFromIngredients(_ ingredients: [String], productName: String?) {
@@ -512,6 +839,34 @@ struct LiveBarcodeScannerView: View {
                     showResults = true
                 }
             }
+        }
+    }
+
+    private func withTimeout<T>(
+        seconds: Double,
+        showsTimeoutAlert: Bool = true,
+        operation: @escaping () async -> T
+    ) async -> (value: T?, timedOut: Bool) {
+        await withTaskGroup(of: (T?, Bool).self) { group in
+            group.addTask {
+                let value = await operation()
+                return (value, false)
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                return (nil, true)
+            }
+
+            let first = await group.next() ?? (nil, true)
+            group.cancelAll()
+
+            if first.1, showsTimeoutAlert {
+                await MainActor.run {
+                    activeAlert = .lookupTimeout
+                }
+            }
+
+            return first
         }
     }
 }

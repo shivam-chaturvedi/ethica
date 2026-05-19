@@ -72,6 +72,9 @@
 		1EEE87A12ED781C500415768 /* ScanProductIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE879F2ED781C500415768 /* ScanProductIntent.swift */; };
 		1EEE87A42ED7A14E00415768 /* LiveBarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE87A22ED7A14E00415768 /* LiveBarcodeScannerView.swift */; };
 		1EEE87A52ED7A14E00415768 /* VisualProductScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEE87A32ED7A14E00415768 /* VisualProductScannerView.swift */; };
+		1EAA11112F9A000100000002 /* MissingProductSubmissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EAA11112F9A000100000001 /* MissingProductSubmissionView.swift */; };
+		1EAA11112F9A000100000004 /* ProductSubmissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EAA11112F9A000100000003 /* ProductSubmissionService.swift */; };
+		1EAA11112F9A000100000006 /* OnDeviceOCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EAA11112F9A000100000005 /* OnDeviceOCRService.swift */; };
 		1EF832222F54920500FF8412 /* ReplaceAppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF832212F54920500FF8412 /* ReplaceAppLogger.swift */; };
 		
 		1EFD00752F402F2B00461A41 /* ProductReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD00722F402F2B00461A41 /* ProductReview.swift */; };
@@ -195,6 +198,9 @@
 		1EEE879F2ED781C500415768 /* ScanProductIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanProductIntent.swift; sourceTree = "<group>"; };
 		1EEE87A22ED7A14E00415768 /* LiveBarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBarcodeScannerView.swift; sourceTree = "<group>"; };
 		1EEE87A32ED7A14E00415768 /* VisualProductScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualProductScannerView.swift; sourceTree = "<group>"; };
+		1EAA11112F9A000100000001 /* MissingProductSubmissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissingProductSubmissionView.swift; sourceTree = "<group>"; };
+		1EAA11112F9A000100000003 /* ProductSubmissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductSubmissionService.swift; sourceTree = "<group>"; };
+		1EAA11112F9A000100000005 /* OnDeviceOCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnDeviceOCRService.swift; sourceTree = "<group>"; };
 		1EF832212F54920500FF8412 /* ReplaceAppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplaceAppLogger.swift; sourceTree = "<group>"; };
 		
 		1EFD00722F402F2B00461A41 /* ProductReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductReview.swift; sourceTree = "<group>"; };
@@ -297,6 +303,8 @@
 				1E0314852F06216B00B8B75A /* AIResultsCacheService.swift */,
 				1EDBMGR02F50000000000001 /* DatabaseManager.swift */,
 				1E864B722F048A97001A2305 /* AuthenticationService.swift */,
+				1EAA11112F9A000100000005 /* OnDeviceOCRService.swift */,
+				1EAA11112F9A000100000003 /* ProductSubmissionService.swift */,
 				1EEE87952ED677FE00415768 /* ARCameraManager.swift */,
 				1EEE87962ED677FE00415768 /* ProductRecognitionService.swift */,
 				1EEE87972ED677FE00415768 /* VoiceGuidanceService.swift */,
@@ -335,6 +343,7 @@
 				1E7483E62EFB0D0D0094AA3F /* PlateAnalysisResultView.swift */,
 				1E7483E72EFB0D0D0094AA3F /* PlateCheckContextSheet.swift */,
 				1EEE87A22ED7A14E00415768 /* LiveBarcodeScannerView.swift */,
+				1EAA11112F9A000100000001 /* MissingProductSubmissionView.swift */,
 				1EEE87A32ED7A14E00415768 /* VisualProductScannerView.swift */,
 				1EEE879B2ED6781B00415768 /* AlternativeProductOverlay.swift */,
 				1EEE879C2ED6781B00415768 /* ARGuideView.swift */,
@@ -697,6 +706,9 @@
 				1E5163092F29D9880061EA4B /* ScanHistoryGrouping.swift in Sources */,
 				1EEE87A42ED7A14E00415768 /* LiveBarcodeScannerView.swift in Sources */,
 				1EEE87A52ED7A14E00415768 /* VisualProductScannerView.swift in Sources */,
+				1EAA11112F9A000100000002 /* MissingProductSubmissionView.swift in Sources */,
+				1EAA11112F9A000100000004 /* ProductSubmissionService.swift in Sources */,
+				1EAA11112F9A000100000006 /* OnDeviceOCRService.swift in Sources */,
 				1E84AC812F3E7E36004FD121 /* ImageCache.swift in Sources */,
 				1EEE87A12ED781C500415768 /* ScanProductIntent.swift in Sources */,
 				1E9C96732ED265F8004BF1D4 /* DashboardView.swift in Sources */,
