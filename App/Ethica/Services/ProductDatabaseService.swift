@@ -143,8 +143,7 @@ class ProductDatabaseService: ObservableObject {
 
     /// Add auth token to backend requests (mirrors NetworkService.addAuthToken)
     private func addAuthToken(to request: inout URLRequest) async {
-        await AuthenticationService.shared.fetchAuthToken()
-        if let token = AuthenticationService.shared.authToken {
+        if let token = AuthenticationService.shared.authToken, !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         request.setValue("gzip, deflate", forHTTPHeaderField: "Accept-Encoding")
@@ -698,55 +697,46 @@ class ProductDatabaseService: ObservableObject {
         preferences: UserPreferences,
         cacheKey: String
     ) async {
-        logger.debug("🔄 Starting visual background enrichment for \(productName)...")
-
-        guard let url = URL(string: "\(AppConfig.backendURL)/comprehensive-analysis") else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 45
-        await addAuthToken(to: &request)
-
-        let payload: [String: Any] = [
-            "ingredients": ingredients,
-            "productName": productName,
-            "userPreferences": [
-                "selectedAllergens": Array(preferences.selectedAllergens),
-                "customAllergens": preferences.customAllergens,
-                "selectedDiets": Array(preferences.selectedDiets),
-                "customDiets": preferences.customDiets,
-                "avoidIngredients": Array(preferences.selectedAllergens) + preferences.customAllergens,
-                "dietaryPreferences": Array(preferences.selectedDiets) + preferences.customDiets,
-                "healthPriority": preferences.healthPriority,
-                "environmentPriority": preferences.environmentPriority,
-                "ethicsPriority": preferences.ethicsPriority,
-                "avoidGMO": preferences.avoidGMO
-            ]
-        ]
-
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            let (data, response) = try await backendSession.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                logger.warning("⚠️ Visual enrichment got non-200 response")
-                return
-            }
-
-            var result = try JSONDecoder().decode(AnalysisResult.self, from: data)
-            result = applyJainValidation(result, preferences: preferences)
-
-            if shouldCacheResult(result) {
-                await aiCache.save(barcode: cacheKey, preferences: preferences, result: result)
-                logger.debug("✅ Visual enrichment complete, publishing for \(productName)")
-                ProductDatabaseService.enhancedResultSubject.send(result)
-            }
-        } catch {
-            logger.warning("⚠️ Visual enrichment failed: \(error.localizedDescription)")
-        }
+        _ = ingredients
+        _ = preferences
+        _ = cacheKey
+        logger.debug("ℹ️ Visual background enrichment disabled (no backend server): \(productName)")
     }
 
     // MARK: - Preliminary Result Builder (OFF data + AI safety verdict)
+
+    private func buildOpenFoodFactsDetails(product: OpenFoodFactsProduct, rawOFFJSON: [String: Any]?) -> AnalysisResult.OpenFoodFactsDetails? {
+        var payload: [String: Any] = [:]
+
+        // Prefer raw OFF JSON for completeness; fall back to typed model fields where possible.
+        payload["allergens"] = (rawOFFJSON?["allergens"] as? String) ?? product.allergens
+        payload["allergens_tags"] = (rawOFFJSON?["allergens_tags"] as? [String])
+        payload["allergens_from_ingredients"] = (rawOFFJSON?["allergens_from_ingredients"] as? String)
+        payload["traces"] = (rawOFFJSON?["traces"] as? String)
+        payload["traces_tags"] = (rawOFFJSON?["traces_tags"] as? [String])
+        payload["ingredients_text"] = (rawOFFJSON?["ingredients_text"] as? String) ?? product.ingredientsText
+        payload["ingredients_text_en"] = (rawOFFJSON?["ingredients_text_en"] as? String) ?? product.ingredientsTextEn
+        if let nutriscoreData = rawOFFJSON?["nutriscore_data"] as? [String: Any] {
+            payload["nutriscore_data"] = nutriscoreData
+        }
+
+        // If we have no meaningful OFF details, skip attaching anything.
+        let hasAny = payload.values.contains { value in
+            if let s = value as? String { return !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            if let a = value as? [Any] { return !a.isEmpty }
+            if let d = value as? [String: Any] { return !d.isEmpty }
+            return value is NSNull ? false : true
+        }
+        guard hasAny else { return nil }
+
+        do {
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return try JSONDecoder().decode(AnalysisResult.OpenFoodFactsDetails.self, from: data)
+        } catch {
+            logger.warning("⚠️ Failed to decode OpenFoodFactsDetails: \(error.localizedDescription)")
+            return nil
+        }
+    }
 
     /// Builds a complete AnalysisResult from OFF product data merged with the quick AI safety check.
     /// Returns immediately so users see allergen/dietary/GMO verdicts in 2-4s.
@@ -758,6 +748,7 @@ class ProductDatabaseService: ObservableObject {
         rawOFFJSON: [String: Any]? = nil
     ) -> AnalysisResult {
         let ingredients = openFoodFactsClient.extractIngredients(from: product)
+        let offDetails = buildOpenFoodFactsDetails(product: product, rawOFFJSON: rawOFFJSON)
         let envImpact = getEnvironmentalData(from: product, ingredients: ingredients)
         let healthScore = calculateHealthScore(
             ingredients: ingredients,
@@ -817,11 +808,18 @@ class ProductDatabaseService: ObservableObject {
                 let gmoWarnings = flagHighRiskGMOIngredients(ingredients)
                 if !gmoWarnings.isEmpty {
                     cautionWarnings.append(contentsOf: gmoWarnings)
+                    // Only set a GMO status when the user explicitly cares about GMO avoidance.
+                    // This avoids confusing "?" badges for users who didn't enable GMO checks.
+                    gmoStatus = "high_risk_unknown"
                 }
             }
 
             isSafe = violations.isEmpty && warnings.isEmpty
             safetyLevel = isSafe ? "safe" : "avoid"
+            if preferences.avoidGMO, gmoStatus == "high_risk_unknown" {
+                isSafe = false
+                safetyLevel = "avoid"
+            }
             confidence = 50  // Lower confidence for client-side only
         }
 
@@ -834,7 +832,7 @@ class ProductDatabaseService: ObservableObject {
             envScore = 50.0
         }
 
-        return AnalysisResult(
+        let baseResult = AnalysisResult(
             productName: product.productNameEn ?? product.productName ?? "Unknown Product",
             overallScore: (Double(healthScore) + envScore) / 2.0,
             isSafe: isSafe,
@@ -867,6 +865,7 @@ class ProductDatabaseService: ObservableObject {
             nutriscoreGrade: product.nutriscoreGrade,
             ecoscoreGrade: product.ecoscoreGrade,
             novaGroup: product.novaGroup,
+            openFoodFactsDetails: offDetails,
             crossContaminationRisks: crossContamRisks,
             alternativesMetadata: AnalysisResult.AlternativesMetadata(
                 productName: product.productNameEn ?? product.productName ?? "Unknown Product",
@@ -876,6 +875,7 @@ class ProductDatabaseService: ObservableObject {
                 sourceBrand: product.brands
             )
         )
+        return mergeCrossContaminationRisks(into: baseResult, openFoodFactsDetails: offDetails, preferences: preferences)
     }
 
     // MARK: - Background Enrichment
@@ -987,23 +987,9 @@ class ProductDatabaseService: ObservableObject {
             return offAnalysis
         }
 
-        // Step 4: Not in OFF — try backend AI identification before falling to OCR
-        await updateProgress(0.8, step: "Not in database, trying AI...")
-        logger.info("🤖 OFF miss for \(barcode) (image scan), trying backend AI identification...")
-
-        if var aiResult = await analyzeWithBackendBarcodeOnly(barcode: barcode, preferences: preferences) {
-            aiResult = applyJainValidation(aiResult, preferences: preferences)
-            logger.info("✅ Backend AI identified product from image barcode: \(aiResult.productName)")
-            if shouldCacheResult(aiResult) {
-                await aiCache.save(barcode: barcode, preferences: preferences, result: aiResult)
-            }
-            await updateProgress(1.0, step: "AI identified product!")
-            return aiResult
-        }
-
-        // Both OFF and AI failed — fall back to OCR
+        // Step 4: Not in OFF — fall back to OCR (no backend server)
         await updateProgress(0.9, step: "Falling back to label scan...")
-        logger.warning("⚠️ Neither OFF nor AI could identify barcode: \(barcode), falling back to OCR")
+        logger.warning("⚠️ OFF miss for barcode: \(barcode), falling back to OCR")
         return nil
     }
     
@@ -1092,68 +1078,45 @@ class ProductDatabaseService: ObservableObject {
         let rawIngredientsText = product.ingredientsTextEn ?? product.ingredientsText
         guard let rawIngredientsText, !rawIngredientsText.isEmpty else {
             logger.warning("⚠️ No ingredients text available, using fallback")
-            return await createFallbackResult(product: product, barcode: barcode, preferences: preferences)
+            return await createFallbackResult(product: product, barcode: barcode, preferences: preferences, rawOFFJSON: rawOFFJSON)
         }
 
         logger.debug("   - Raw ingredients text: \(rawIngredientsText.prefix(100))...")
 
-        // (enhancedResult is published via static PassthroughSubject — no clearing needed)
+        // No backend server: return local fallback quickly, and optionally enrich with Gemini in background.
+        let fallback = await createFallbackResult(product: product, barcode: barcode, preferences: preferences, rawOFFJSON: rawOFFJSON)
 
-        // Use SSE streaming: returns preliminary result fast, publishes enhanced via enhancedResult
-        logger.debug("📡 Using SSE streaming for backend analysis...")
+        Task { [weak self] in
+            guard let self else { return }
+            guard GeminiConfig.isConfigured else { return }
 
-        let streamingTask = Task<AnalysisResult?, Never> {
-            await analyzeWithBackendStreaming(
-                ingredientsText: rawIngredientsText,
-                productName: product.productNameEn ?? product.productName,
-                preferences: preferences,
-                barcode: barcode,
-                product: product,
-                rawOFFJSON: rawOFFJSON
-            )
-        }
-
-        // Wait up to 20 seconds for streaming result before starting parallel fallback
-        let backendTimeout: UInt64 = 20_000_000_000 // 20s - accommodate GAE cold starts
-        let timeoutTask = Task {
-            try? await Task.sleep(nanoseconds: backendTimeout)
-        }
-
-        // Race: did streaming return within 20s?
-        let quickResult = await withTaskGroup(of: Bool.self) { group in
-            group.addTask { await streamingTask.value != nil }
-            group.addTask { await timeoutTask.value; return false }
-            let first = await group.next() ?? false
-            group.cancelAll()
-            return first
-        }
-
-        if quickResult {
-            if let result = await streamingTask.value {
-                logger.debug("✅ Streaming backend succeeded (within 20s)")
-                return mergeAllergens(into: result, product: product, preferences: preferences)
+            do {
+                let json = try await GeminiService.shared.analyzeIngredientsTextToAnalysisResultJSON(
+                    ingredientsText: rawIngredientsText,
+                    productName: product.productNameEn ?? product.productName,
+                    preferences: preferences
+                )
+                let data = try JSONSerialization.data(withJSONObject: json)
+                if var parsed = self.parseBackendResponse(data: data, barcode: barcode, productName: product.productNameEn ?? product.productName, product: product) {
+                    parsed = applyJainValidation(parsed, preferences: preferences)
+                    let merged = self.mergeAllergens(into: parsed, product: product, preferences: preferences)
+                    if self.shouldCacheResult(merged) {
+                        await self.aiCache.save(barcode: barcode, preferences: preferences, result: merged)
+                    }
+                    ProductDatabaseService.enhancedResultSubject.send(merged)
+                }
+            } catch {
+                self.logger.debug("⚠️ Gemini enrichment failed: \(error.localizedDescription)")
             }
         }
 
-        // Backend is slow or failed — start local fallback in parallel
-        logger.warning("⚠️ Backend slow (>20s), starting local fallback in parallel...")
-        let fallbackTask = Task<AnalysisResult, Never> {
-            await createFallbackResult(product: product, barcode: barcode, preferences: preferences)
-        }
-
-        if let backendResult = await streamingTask.value {
-            fallbackTask.cancel()
-            logger.debug("✅ Streaming backend succeeded (after parallel fallback started)")
-            return mergeAllergens(into: backendResult, product: product, preferences: preferences)
-        }
-
-        logger.warning("⚠️ Backend analysis failed, using local fallback")
-        return await fallbackTask.value
+        return fallback
     }
     
-    private func createFallbackResult(product: OpenFoodFactsProduct, barcode: String, preferences: UserPreferences) async -> AnalysisResult {
+    private func createFallbackResult(product: OpenFoodFactsProduct, barcode: String, preferences: UserPreferences, rawOFFJSON: [String: Any]? = nil) async -> AnalysisResult {
         let ingredients = openFoodFactsClient.extractIngredients(from: product)
         logger.debug("   - Fallback: Extracted \(ingredients.count) ingredients")
+        let offDetails = buildOpenFoodFactsDetails(product: product, rawOFFJSON: rawOFFJSON)
         
         let concernItems = analyzeIngredients(ingredients, preferences: preferences)
         logger.debug("   - Concern items: \(concernItems.count)")
@@ -1436,7 +1399,7 @@ class ProductDatabaseService: ObservableObject {
         warnings.append("⚠️ Offline fallback data - rescan for complete analysis including GMO detection")
         let isSafeValue = false  // Always unsafe from fallback - forces fresh backend analysis
 
-        return AnalysisResult(
+        let baseResult = AnalysisResult(
             id: UUID(),
             productName: product.productNameEn ?? product.productName ?? "Unknown Product",
             overallScore: Double(healthScore),
@@ -1463,8 +1426,10 @@ class ProductDatabaseService: ObservableObject {
             environmentalBreakdown: environmentalBreakdown,
             sourceBarcode: barcode,
             sourceType: "openfoodfacts",
-            timestamp: Date()
+            timestamp: Date(),
+            openFoodFactsDetails: offDetails
         )
+        return mergeCrossContaminationRisks(into: baseResult, openFoodFactsDetails: offDetails, preferences: preferences)
     }
     
     private func getEcoscoreValue(_ grade: String?) -> Double {
@@ -1755,13 +1720,30 @@ class ProductDatabaseService: ObservableObject {
     private func mergeAllergens(into result: AnalysisResult, product: OpenFoodFactsProduct?, preferences: UserPreferences) -> AnalysisResult {
         guard let product = product else { return result }
 
+        // User allergens drive safety. If user hasn't selected any allergens, don't force unsafe.
+        let userAllergens = (Array(preferences.selectedAllergens) + preferences.customAllergens)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        func normalizeOffToken(_ token: String) -> String {
+            var t = token.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if let colon = t.firstIndex(of: ":") {
+                // OFF uses language prefixes like "en:nuts"
+                t = String(t[t.index(after: colon)...])
+            }
+            t = t.replacingOccurrences(of: "_", with: " ")
+            t = t.replacingOccurrences(of: "-", with: " ")
+            return t.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
         var allAllergens = Set(result.detectedAllergens.map { $0.lowercased() })
+        var newEvidence: [AnalysisResult.DetectionEvidence] = []
 
         // Add OFF allergens field
         if let offAllergens = product.allergens {
             for a in offAllergens.components(separatedBy: ",") {
-                let trimmed = a.trimmingCharacters(in: .whitespaces)
-                if !trimmed.isEmpty { allAllergens.insert(trimmed.lowercased()) }
+                let normalized = normalizeOffToken(a)
+                if !normalized.isEmpty { allAllergens.insert(normalized) }
             }
         }
 
@@ -1772,10 +1754,28 @@ class ProductDatabaseService: ObservableObject {
             for a in detected { allAllergens.insert(a.lowercased()) }
         }
 
-        // Filter to user's selected allergens (synonym-aware)
+        // Filter to user's selected allergens (synonym-aware). Keep result.detectedAllergens
+        // as "relevant to you" to avoid noisy lists for users without allergies.
         let matched = Array(allAllergens.filter { allergen in
-            preferences.selectedAllergens.contains { Self.allergensMatch(allergen, $0) }
+            userAllergens.contains { Self.allergensMatch(allergen, $0) }
         }).sorted()
+
+        // Add OFF-sourced evidence entries for transparency
+        if !matched.isEmpty {
+            for allergen in matched {
+                newEvidence.append(AnalysisResult.DetectionEvidence(
+                    ingredient: allergen,
+                    matchedPreference: allergen,
+                    reason: "Listed as an allergen by the manufacturer/community on OpenFoodFacts",
+                    source: "OpenFoodFacts",
+                    confidence: 95,
+                    riskLevel: "High",
+                    riskExplanation: nil,
+                    manufacturingDetails: nil,
+                    guidance: "Verify on the label if you have a severe allergy"
+                ))
+            }
+        }
 
         // Skip reconstruction if nothing changed
         if Set(matched) == Set(result.detectedAllergens.map { $0.lowercased() }) {
@@ -1784,12 +1784,15 @@ class ProductDatabaseService: ObservableObject {
 
         AppLogger.debug("🔀 Merged allergens: backend=\(result.detectedAllergens) + OFF/client → \(matched)")
 
+        let mergedEvidence = result.detectionEvidence + newEvidence
+        let shouldMarkUnsafe = !userAllergens.isEmpty && !matched.isEmpty
+
         return AnalysisResult(
             id: result.id, productName: result.productName, overallScore: result.overallScore,
-            isSafe: matched.isEmpty ? result.isSafe : false,
+            isSafe: shouldMarkUnsafe ? false : result.isSafe,
             confidence: result.confidence, confidenceFactors: result.confidenceFactors,
             violations: result.violations, warnings: result.warnings, cautionWarnings: result.cautionWarnings,
-            ingredients: result.ingredients, detectedAllergens: matched, detectionEvidence: result.detectionEvidence,
+            ingredients: result.ingredients, detectedAllergens: matched, detectionEvidence: mergedEvidence,
             healthScore: result.healthScore, environmentalScore: result.environmentalScore,
             co2Emissions: result.co2Emissions, waterUsage: result.waterUsage,
             animalImpact: result.animalImpact, landUse: result.landUse,
@@ -1801,13 +1804,144 @@ class ProductDatabaseService: ObservableObject {
             animalWelfareScore: result.animalWelfareScore, additives: result.additives,
             packageWeightGrams: result.packageWeightGrams,
             sourceBarcode: result.sourceBarcode, sourceType: result.sourceType, timestamp: result.timestamp,
-            safetyLevel: matched.isEmpty ? result.safetyLevel : "avoid",
+            safetyLevel: shouldMarkUnsafe ? "avoid" : result.safetyLevel,
             gmoStatus: result.gmoStatus,
             nutriscoreGrade: result.nutriscoreGrade, ecoscoreGrade: result.ecoscoreGrade, novaGroup: result.novaGroup,
+            openFoodFactsDetails: result.openFoodFactsDetails,
             isRestaurantMenu: result.isRestaurantMenu, menuDishes: result.menuDishes,
             safetyConfidenceExplanation: result.safetyConfidenceExplanation,
             ingredientEducation: result.ingredientEducation,
             crossContaminationRisks: result.crossContaminationRisks,
+            alternativesMetadata: result.alternativesMetadata
+        )
+    }
+
+    /// Merge cross-contamination ("may contain") risks from OpenFoodFacts traces + backend AI.
+    /// Respects `mayContainSafe` preference:
+    /// - relaxed (`true`): shows risks but does not mark unsafe
+    /// - strict (`false`): matching risks for user allergens mark product unsafe
+    private func mergeCrossContaminationRisks(
+        into result: AnalysisResult,
+        openFoodFactsDetails: AnalysisResult.OpenFoodFactsDetails?,
+        preferences: UserPreferences
+    ) -> AnalysisResult {
+        guard let off = openFoodFactsDetails else { return result }
+
+        let userAllergens = (Array(preferences.selectedAllergens) + preferences.customAllergens)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        func normalizeOffToken(_ token: String) -> String {
+            var t = token.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if let colon = t.firstIndex(of: ":") {
+                t = String(t[t.index(after: colon)...])
+            }
+            t = t.replacingOccurrences(of: "_", with: " ")
+            t = t.replacingOccurrences(of: "-", with: " ")
+            return t.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        var tracesSet = Set<String>()
+        if let tags = off.tracesTags {
+            for tag in tags {
+                let n = normalizeOffToken(tag)
+                if !n.isEmpty { tracesSet.insert(n) }
+            }
+        }
+        if let raw = off.traces, !raw.isEmpty {
+            for part in raw.components(separatedBy: ",") {
+                let n = normalizeOffToken(part)
+                if !n.isEmpty { tracesSet.insert(n) }
+            }
+        }
+
+        guard !tracesSet.isEmpty else { return result }
+
+        var mergedRisks: [AnalysisResult.CrossContaminationRisk] = result.crossContaminationRisks ?? []
+        let existing = Set(mergedRisks.map { $0.allergen.lowercased() })
+        for trace in tracesSet.sorted() where !existing.contains(trace.lowercased()) {
+            mergedRisks.append(AnalysisResult.CrossContaminationRisk(
+                allergen: trace,
+                riskLevel: "Medium",
+                riskExplanation: "May contain traces of \(trace) (cross-contamination warning from OpenFoodFacts).",
+                manufacturingDetails: "Shared facility/equipment possible",
+                guidance: preferences.mayContainSafe
+                    ? "Informational only (relaxed mode). Verify the label if you have severe allergies."
+                    : "Strict mode: treat as unsafe for your allergens."
+            ))
+        }
+
+        // Strict mode: if any risk matches user allergens, escalate to unsafe.
+        let matchingRisks: [AnalysisResult.CrossContaminationRisk] = (!preferences.mayContainSafe && !userAllergens.isEmpty)
+            ? mergedRisks.filter { risk in userAllergens.contains { Self.allergensMatch(risk.allergen, $0) } }
+            : []
+        let strictHit = !matchingRisks.isEmpty
+
+        if !strictHit {
+            // Just attach risks
+            return AnalysisResult(
+                id: result.id, productName: result.productName, overallScore: result.overallScore,
+                isSafe: result.isSafe,
+                confidence: result.confidence, confidenceFactors: result.confidenceFactors,
+                violations: result.violations, warnings: result.warnings, cautionWarnings: result.cautionWarnings,
+                ingredients: result.ingredients, detectedAllergens: result.detectedAllergens, detectionEvidence: result.detectionEvidence,
+                healthScore: result.healthScore, environmentalScore: result.environmentalScore,
+                co2Emissions: result.co2Emissions, waterUsage: result.waterUsage,
+                animalImpact: result.animalImpact, landUse: result.landUse,
+                nutritionalHighlights: result.nutritionalHighlights, healthConcerns: result.healthConcerns,
+                healthBenefits: result.healthBenefits, recommendations: result.recommendations,
+                alternatives: result.alternatives, environmentalBreakdown: result.environmentalBreakdown,
+                brand: result.brand, certifications: result.certifications, processingLevel: result.processingLevel,
+                estimatedCO2: result.estimatedCO2, packagingScore: result.packagingScore,
+                animalWelfareScore: result.animalWelfareScore, additives: result.additives,
+                packageWeightGrams: result.packageWeightGrams,
+                sourceBarcode: result.sourceBarcode, sourceType: result.sourceType, timestamp: result.timestamp,
+                safetyLevel: result.safetyLevel,
+                gmoStatus: result.gmoStatus,
+                nutriscoreGrade: result.nutriscoreGrade, ecoscoreGrade: result.ecoscoreGrade, novaGroup: result.novaGroup,
+                openFoodFactsDetails: result.openFoodFactsDetails,
+                isRestaurantMenu: result.isRestaurantMenu, menuDishes: result.menuDishes,
+                safetyConfidenceExplanation: result.safetyConfidenceExplanation,
+                ingredientEducation: result.ingredientEducation,
+                crossContaminationRisks: mergedRisks,
+                alternativesMetadata: result.alternativesMetadata
+            )
+        }
+
+        // Escalate to violation(s) in strict mode
+        var violations = result.violations
+        for risk in matchingRisks {
+            let msg = "⚠️ May contain traces of \(risk.allergen)"
+            if !violations.contains(where: { $0.lowercased().contains(msg.lowercased()) }) {
+                violations.append(msg)
+            }
+        }
+
+        return AnalysisResult(
+            id: result.id, productName: result.productName, overallScore: result.overallScore,
+            isSafe: false,
+            confidence: result.confidence, confidenceFactors: result.confidenceFactors,
+            violations: violations, warnings: result.warnings, cautionWarnings: result.cautionWarnings,
+            ingredients: result.ingredients, detectedAllergens: result.detectedAllergens, detectionEvidence: result.detectionEvidence,
+            healthScore: result.healthScore, environmentalScore: result.environmentalScore,
+            co2Emissions: result.co2Emissions, waterUsage: result.waterUsage,
+            animalImpact: result.animalImpact, landUse: result.landUse,
+            nutritionalHighlights: result.nutritionalHighlights, healthConcerns: result.healthConcerns,
+            healthBenefits: result.healthBenefits, recommendations: result.recommendations,
+            alternatives: result.alternatives, environmentalBreakdown: result.environmentalBreakdown,
+            brand: result.brand, certifications: result.certifications, processingLevel: result.processingLevel,
+            estimatedCO2: result.estimatedCO2, packagingScore: result.packagingScore,
+            animalWelfareScore: result.animalWelfareScore, additives: result.additives,
+            packageWeightGrams: result.packageWeightGrams,
+            sourceBarcode: result.sourceBarcode, sourceType: result.sourceType, timestamp: result.timestamp,
+            safetyLevel: "avoid",
+            gmoStatus: result.gmoStatus,
+            nutriscoreGrade: result.nutriscoreGrade, ecoscoreGrade: result.ecoscoreGrade, novaGroup: result.novaGroup,
+            openFoodFactsDetails: result.openFoodFactsDetails,
+            isRestaurantMenu: result.isRestaurantMenu, menuDishes: result.menuDishes,
+            safetyConfidenceExplanation: result.safetyConfidenceExplanation,
+            ingredientEducation: result.ingredientEducation,
+            crossContaminationRisks: mergedRisks,
             alternativesMetadata: result.alternativesMetadata
         )
     }
@@ -1918,6 +2052,7 @@ class ProductDatabaseService: ObservableObject {
             safetyLevel: hasViolations ? "avoid" : result.safetyLevel,
             gmoStatus: result.gmoStatus,
             nutriscoreGrade: result.nutriscoreGrade, ecoscoreGrade: result.ecoscoreGrade, novaGroup: result.novaGroup,
+            openFoodFactsDetails: result.openFoodFactsDetails,
             isRestaurantMenu: result.isRestaurantMenu, menuDishes: result.menuDishes,
             safetyConfidenceExplanation: result.safetyConfidenceExplanation,
             ingredientEducation: result.ingredientEducation,
@@ -1929,8 +2064,19 @@ class ProductDatabaseService: ObservableObject {
     // MARK: - Backend Analysis (Gemini AI)
     
     private func analyzeWithBackendRawText(ingredientsText: String, productName: String?, preferences: UserPreferences, barcode: String, product: OpenFoodFactsProduct?, rawOFFJSON: [String: Any]? = nil) async -> AnalysisResult? {
+        // No backend server: use local fallback + optional Gemini enrichment elsewhere.
+        _ = ingredientsText
+        _ = productName
+        _ = preferences
+        _ = barcode
+        _ = product
+        _ = rawOFFJSON
+        logger.debug("ℹ️ Backend raw-text analysis disabled (no backend server)")
+        return nil
+
+#if false
         // 🚀 Extract ingredients from raw text before sending to backend
-        guard let url = URL(string: "\(AppConfig.backendURL)/comprehensive-analysis") else {
+        guard let url = URL(string: "https://unused.local/comprehensive-analysis") else {
             AppLogger.error("❌ Invalid backend URL")
             return nil
         }
@@ -2018,6 +2164,7 @@ class ProductDatabaseService: ObservableObject {
             AppLogger.error("❌ Backend analysis error after retries: \(error)")
             return nil
         }
+#endif
     }
     
     // MARK: - SSE Streaming Backend Analysis
@@ -2032,7 +2179,17 @@ class ProductDatabaseService: ObservableObject {
         product: OpenFoodFactsProduct?,
         rawOFFJSON: [String: Any]? = nil
     ) async -> AnalysisResult? {
-        guard let url = URL(string: "\(AppConfig.backendURL)/comprehensive-analysis") else {
+        _ = ingredientsText
+        _ = productName
+        _ = preferences
+        _ = barcode
+        _ = product
+        _ = rawOFFJSON
+        logger.debug("ℹ️ Backend streaming analysis disabled (no backend server)")
+        return nil
+
+#if false
+        guard let url = URL(string: "https://unused.local/comprehensive-analysis") else {
             AppLogger.error("❌ Invalid backend URL for streaming")
             return await analyzeWithBackendRawText(ingredientsText: ingredientsText, productName: productName, preferences: preferences, barcode: barcode, product: product, rawOFFJSON: rawOFFJSON)
         }
@@ -2163,12 +2320,21 @@ class ProductDatabaseService: ObservableObject {
             logger.warning("⚠️ SSE connection failed: \(error.localizedDescription), falling back to standard request")
             return await analyzeWithBackendRawText(ingredientsText: ingredientsText, productName: productName, preferences: preferences, barcode: barcode, product: product, rawOFFJSON: rawOFFJSON)
         }
+#endif
     }
 
     /// Call backend with barcode only (no OFF data, no ingredients).
     /// Backend will use Gemini AI to identify the product and return full analysis.
     private func analyzeWithBackendBarcodeOnly(barcode: String, productName: String? = nil, product: OpenFoodFactsProduct? = nil, preferences: UserPreferences) async -> AnalysisResult? {
-        guard let url = URL(string: "\(AppConfig.backendURL)/comprehensive-analysis") else {
+        _ = barcode
+        _ = productName
+        _ = product
+        _ = preferences
+        logger.debug("ℹ️ Backend barcode-only analysis disabled (no backend server)")
+        return nil
+
+#if false
+        guard let url = URL(string: "https://unused.local/comprehensive-analysis") else {
             AppLogger.error("❌ Invalid backend URL for barcode-only analysis")
             return nil
         }
@@ -2220,6 +2386,7 @@ class ProductDatabaseService: ObservableObject {
             AppLogger.error("❌ Backend barcode-only failed after retries: \(error)")
             return nil
         }
+#endif
     }
 
     // MARK: - Backend Response Parsing
@@ -2456,6 +2623,7 @@ class ProductDatabaseService: ObservableObject {
         let isPescatarian = allDietsLower.contains("pescatarian")
         let isPaleo = allDietsLower.contains("paleo")
         let isLowFODMAP = allDietsLower.contains("low-fodmap") || allDietsLower.contains("low fodmap") || allDietsLower.contains("fodmap")
+        let isGlutenFree = allDietsLower.contains("gluten-free") || allDietsLower.contains("gluten free") || allDietsLower.contains("celiac") || allDietsLower.contains("coeliac")
 
         // Vegan non-animal keywords for word-boundary matching
         let veganProhibited = ["milk", "dairy", "cream", "butter", "cheese", "whey",
@@ -2475,6 +2643,9 @@ class ProductDatabaseService: ObservableObject {
         // Low-FODMAP prohibited
         let lowFODMAPProhibited = ["garlic", "onion", "wheat", "apple", "honey", "milk",
                                    "yogurt", "legume", "bean", "cashew"]
+        // Gluten-free prohibited (ingredient-level keywords). Avoid flagging "gluten-free" labeled ingredients.
+        let glutenFreeProhibited = ["wheat", "gluten", "barley", "rye", "malt", "spelt", "semolina", "durum",
+                                    "farro", "bulgur", "couscous", "triticale", "seitan", "breadcrumbs"]
 
         // Track flagged ingredients to prevent duplicate violations when diets overlap
         var flaggedIngredients: Set<String> = []
@@ -2565,6 +2736,16 @@ class ProductDatabaseService: ObservableObject {
             if isLowFODMAP && !flaggedIngredients.contains(ingredientKey) {
                 if lowFODMAPProhibited.contains(where: { matchesWord(fullText, $0) }) {
                     concerns.append(ConcernItem(ingredient: ingredient, concern: "High-FODMAP ingredient", severity: "high"))
+                    flaggedIngredients.insert(ingredientKey)
+                }
+            }
+
+            // GLUTEN-FREE CHECK
+            if isGlutenFree && !flaggedIngredients.contains(ingredientKey) {
+                // Avoid false positives like "gluten-free oats" or "gluten free flour"
+                if !(fullText.contains("gluten-free") || fullText.contains("gluten free")),
+                   glutenFreeProhibited.contains(where: { matchesWord(fullText, $0) }) {
+                    concerns.append(ConcernItem(ingredient: ingredient, concern: "Not gluten-free", severity: "high"))
                     flaggedIngredients.insert(ingredientKey)
                 }
             }

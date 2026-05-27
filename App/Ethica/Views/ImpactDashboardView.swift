@@ -726,7 +726,7 @@ struct ImpactDashboardView: View {
                 }
             } catch {
                 await MainActor.run {
-                    self.errorMessage = error.localizedDescription
+                    self.errorMessage = UserFacingError.message(from: error)
                     self.isLoading = false
                 }
             }

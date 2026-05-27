@@ -278,6 +278,11 @@ class HistoryService {
                     }
                 }
                 sqlite3_finalize(verifyStatement)
+
+                // Best-effort cloud backup to Supabase (no backend server)
+                Task {
+                    await NetworkService.shared.syncScanToSupabase(scan)
+                }
             } else {
                 let errorCode = sqlite3_errcode(db)
                 let errorMsg = dbErrorMessage()

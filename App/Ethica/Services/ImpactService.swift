@@ -25,45 +25,18 @@ class ImpactService {
     // MARK: - Get Complete User Impact
 
     func getUserImpact() async throws -> UserImpact {
-        // Fetch from production backend (primary source of truth)
-        let networkService = NetworkService.shared
         let userId = AuthenticationService.shared.currentUserId ?? "anonymous"
         let weeklyTrend = calculateWeeklyTrend()
         let monthlyTrend = calculateMonthlyTrend()
         let streakDays = calculateStreakDays()
         let currentMonthStats = getCurrentMonthStats()
+        _ = userId
 
-        // Production backend is primary; local SQLite is fallback
-        var backendCO2: Double = 0
-        var backendWater: Double = 0
-        var backendScans: Int = 0
-        var usedBackend = false
-        do {
-            let backendData = try await networkService.getUserImpact(userId: userId)
-            backendCO2 = backendData.co2Saved
-            backendWater = backendData.waterSaved
-            backendScans = backendData.totalScans
-            usedBackend = true
-        } catch {
-            AppLogger.debug("Production backend unavailable, falling back to local data: \(error.localizedDescription)")
-        }
-
-        // If backend returned data, use it; otherwise fall back to local SQLite
+        // No backend server: use local SQLite as the source of truth.
         let localTotals = calculateLocalTotals()
-        let totalCO2: Double
-        let totalWater: Double
-        let totalScans: Int
-        if usedBackend {
-            // Use the higher of backend vs local (backend is primary)
-            totalCO2 = max(backendCO2, localTotals.co2Saved)
-            totalWater = max(backendWater, localTotals.waterSaved)
-            totalScans = max(backendScans, localTotals.totalScans)
-        } else {
-            // Fallback: local only
-            totalCO2 = localTotals.co2Saved
-            totalWater = localTotals.waterSaved
-            totalScans = localTotals.totalScans
-        }
+        let totalCO2 = localTotals.co2Saved
+        let totalWater = localTotals.waterSaved
+        let totalScans = localTotals.totalScans
 
         let milestones = calculateMilestones(
             totalCO2: totalCO2,
@@ -421,5 +394,4 @@ class ImpactService {
         return formatter.string(from: date)
     }
 }
-
 

@@ -282,40 +282,4 @@ struct MenuAnalysisResponse: Codable {
     }
 }
 
-struct AppConfig {
-    // Backend URL Configuration — auto-detects via build configuration
-    
-    private static let productionURL = "https://ethica-vision-2024.uc.r.appspot.com"
-    private static let developmentURL = "http://localhost:8080"
-    
-    static var backendURL: String {
-        #if DEBUG
-        #if targetEnvironment(simulator)
-        return developmentURL  // Simulator can reach Mac's localhost
-        #else
-        return productionURL   // Physical device cannot reach localhost
-        #endif
-        #else
-        return productionURL
-        #endif
-    }
-    
-    static var isProduction: Bool {
-        #if DEBUG
-        #if targetEnvironment(simulator)
-        return false
-        #else
-        return true  // Physical device uses production even in DEBUG
-        #endif
-        #else
-        return true
-        #endif
-    }
-    
-    // For debugging — prints which backend is being used
-    static func printConfiguration() {
-        AppLogger.debug("🔗 Backend Configuration:")
-        AppLogger.debug("   Environment: \(isProduction ? "PRODUCTION" : "DEVELOPMENT")")
-        AppLogger.debug("   URL: \(backendURL)")
-    }
-}
+// AppConfig (backend URL) removed: the app is backend-less and uses Supabase + Gemini directly.

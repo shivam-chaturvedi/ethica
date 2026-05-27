@@ -285,8 +285,10 @@ struct ReviewSubmissionSheet: View {
             } catch {
                 await MainActor.run {
                     isSubmitting = false
-                    errorMessage = error.localizedDescription
-                    showError = true
+                    if let message = UserFacingError.message(from: error) {
+                        errorMessage = message
+                        showError = true
+                    }
                 }
             }
         }

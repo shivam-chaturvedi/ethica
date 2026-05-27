@@ -7,22 +7,13 @@
 
 import SwiftUI
 import AppIntents
-import FirebaseCore
-import GoogleSignIn
 
 @main
 struct EthicaApp: App {
     @StateObject private var authService = AuthenticationService.shared
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
-    @AppStorage("onboardingCompletedByUser") private var onboardingCompletedByUser = ""
 
     init() {
-        // Initialize Firebase
-        FirebaseApp.configure()
-
-        // Print backend configuration on app launch
-        AppConfig.printConfiguration()
-
         // Pre-warm haptic generators for responsive first-scan feedback
         _ = HapticManager.shared
     }
@@ -31,7 +22,7 @@ struct EthicaApp: App {
         WindowGroup {
             Group {
                 if !hasCompletedOnboarding {
-                    // First-time user: onboard before sign-in
+                    // Show onboarding once per install, regardless of sign-in state.
                     OnboardingView(
                         preferencesManager: PreferencesManager.shared,
                         onComplete: {
@@ -41,31 +32,9 @@ struct EthicaApp: App {
                         }
                     )
                 } else if !authService.isAuthenticated {
-                    // Onboarding done, need sign-in
+                    // Onboarding already completed, need sign-in
                     SignInView()
                         .environmentObject(authService)
-                } else if onboardingCompletedByUser.isEmpty {
-                    // Just signed in after fresh onboarding — auto-stamp and go to main app
-                    ContentView()
-                        .environmentObject(authService)
-                        .onAppear {
-                            onboardingCompletedByUser = authService.currentUserId ?? ""
-                            Task {
-                                try? await Task.sleep(nanoseconds: 500_000_000)
-                                PreferencesManager.shared.pullFromBackendIfNeeded()
-                                HistoryService.shared.pullFromBackendIfNeeded()
-                            }
-                        }
-                } else if onboardingCompletedByUser != (authService.currentUserId ?? "") {
-                    // Different user signed in — re-onboard
-                    OnboardingView(
-                        preferencesManager: PreferencesManager.shared,
-                        onComplete: {
-                            withAnimation(AnimationSystem.springSmooth) {
-                                onboardingCompletedByUser = authService.currentUserId ?? ""
-                            }
-                        }
-                    )
                 } else {
                     // Returning user, all set
                     ContentView()
@@ -78,10 +47,6 @@ struct EthicaApp: App {
                 }
             }
             .withToasts()
-            .onOpenURL { url in
-                // Handle the Google Sign-In redirect URL when the app is reopened
-                GIDSignIn.sharedInstance.handle(url)
-            }
             .preferredColorScheme(.dark)
         }
     }

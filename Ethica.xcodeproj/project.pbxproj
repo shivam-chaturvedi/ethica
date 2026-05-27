@@ -48,7 +48,6 @@
 		1E84AC7D2F35A13E004FD121 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E84AC7C2F35A13E004FD121 /* HapticManager.swift */; };
 		1E84AC812F3E7E36004FD121 /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E84AC802F3E7E36004FD121 /* ImageCache.swift */; };
 		1E84AC832F3E7E61004FD121 /* Debouncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E84AC822F3E7E61004FD121 /* Debouncer.swift */; };
-		1E864B712F048666001A2305 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1E864B702F048666001A2305 /* GoogleService-Info.plist */; };
 		1E864B732F048A97001A2305 /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E864B722F048A97001A2305 /* AuthenticationService.swift */; };
 		1E864B752F048AD2001A2305 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E864B742F048AD2001A2305 /* SignInView.swift */; };
 		1E9C966E2EC6C7FC004BF1D4 /* Color+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9C966D2EC6C7FC004BF1D4 /* Color+Extensions.swift */; };
@@ -110,6 +109,9 @@
 		AABB00060000000000000002 /* LottieView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB00060000000000000001 /* LottieView.swift */; };
 		E2604009384361513636C35C /* DebugLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97AF1CF98E58B0CD06C244F /* DebugLogger.swift */; };
 		EBF94C74727BCB720173E287 /* OfflineCacheService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51795ABC15F7C559F9BFE6BB /* OfflineCacheService.swift */; };
+		GEMINICFG001A1B2C3D4E5F60001 /* GeminiConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = GEMINICFG002A1B2C3D4E5F60001 /* GeminiConfig.swift */; };
+		GEMINISVC001A1B2C3D4E5F60002 /* GeminiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = GEMINISVC002A1B2C3D4E5F60002 /* GeminiService.swift */; };
+		USERFACINGERR001A1B2C3D4E5F60003 /* UserFacingError.swift in Sources */ = {isa = PBXBuildFile; fileRef = USERFACINGERR002A1B2C3D4E5F60003 /* UserFacingError.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -174,7 +176,6 @@
 		1E84AC7C2F35A13E004FD121 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
 		1E84AC802F3E7E36004FD121 /* ImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCache.swift; sourceTree = "<group>"; };
 		1E84AC822F3E7E61004FD121 /* Debouncer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debouncer.swift; sourceTree = "<group>"; };
-		1E864B702F048666001A2305 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		1E864B722F048A97001A2305 /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
 		1E864B742F048AD2001A2305 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		1E9C966D2EC6C7FC004BF1D4 /* Color+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Extensions/Color+Extensions.swift"; sourceTree = "<group>"; };
@@ -227,6 +228,9 @@
 		1EFD009D2F43775D00461A41 /* IngredientMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientMatcher.swift; sourceTree = "<group>"; };
 		1EFD009F2F44CE4900461A41 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		41F949C2A1DD683D0170440A /* PlateAnalysisModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlateAnalysisModel.swift; sourceTree = "<group>"; };
+		GEMINICFG002A1B2C3D4E5F60001 /* GeminiConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiConfig.swift; sourceTree = "<group>"; };
+		USERFACINGERR002A1B2C3D4E5F60003 /* UserFacingError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserFacingError.swift; sourceTree = "<group>"; };
+		GEMINISVC002A1B2C3D4E5F60002 /* GeminiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiService.swift; sourceTree = "<group>"; };
 		51795ABC15F7C559F9BFE6BB /* OfflineCacheService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OfflineCacheService.swift; sourceTree = "<group>"; };
 		871510464A784ED1802FA6F4 /* Pods_Ethica.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Ethica.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		A0D7D1EA639E094EFCA103C2 /* Pods-Ethica.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Ethica.debug.xcconfig"; path = "Target Support Files/Pods-Ethica/Pods-Ethica.debug.xcconfig"; sourceTree = "<group>"; };
@@ -270,7 +274,6 @@
 		1E481E2A2EC400D3009F8B99 = {
 			isa = PBXGroup;
 			children = (
-				1E864B702F048666001A2305 /* GoogleService-Info.plist */,
 				1E481E722EC406A7009F8B99 /* Info.plist */,
 				1E481E342EC400D3009F8B99 /* Products */,
 				1E481E6C2EC401F6009F8B99 /* App */,
@@ -312,6 +315,7 @@
 				1E9C96782ED2662F004BF1D4 /* ImpactCalculator.swift */,
 				1EDB10002EDBAA01001A2B3C /* BarcodeScanner.swift */,
 				1E481E612EC401F6009F8B99 /* NetworkService.swift */,
+				GEMINISVC002A1B2C3D4E5F60002 /* GeminiService.swift */,
 				1EDB10022EDBAA02001A2B3C /* OpenFoodFactsClient.swift */,
 				1E481E622EC401F6009F8B99 /* PreferencesStorage.swift */,
 				1EDB10042EDBAA03001A2B3C /* ProductCacheService.swift */,
@@ -360,9 +364,19 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		GEMINICFGGRP1A1B2C3D4E5F60001 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				GEMINICFG002A1B2C3D4E5F60001 /* GeminiConfig.swift */,
+				USERFACINGERR002A1B2C3D4E5F60003 /* UserFacingError.swift */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		1E481E6B2EC401F6009F8B99 /* Ethica */ = {
 			isa = PBXGroup;
 			children = (
+				GEMINICFGGRP1A1B2C3D4E5F60001 /* Config */,
 				1E5163082F29D9880061EA4B /* Helpers */,
 				1E5162FC2F28719C0061EA4B /* Models */,
 				1E5162EB2F2870200061EA4B /* Components */,
@@ -494,6 +508,7 @@
 			buildConfigurationList = 1E481E542EC400D7009F8B99 /* Build configuration list for PBXNativeTarget "Ethica" */;
 			buildPhases = (
 				DD5FF625E7D1081A58032D78 /* [CP] Check Pods Manifest.lock */,
+				AABBEE1100AABBEE1100AABC /* Copy .env Into Bundle */,
 				1E481E2F2EC400D3009F8B99 /* Sources */,
 				1E481E302EC400D3009F8B99 /* Frameworks */,
 				1E481E312EC400D3009F8B99 /* Resources */,
@@ -593,8 +608,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1E864B712F048666001A2305 /* GoogleService-Info.plist in Resources */,
-				
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -652,6 +665,23 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Ethica/Pods-Ethica-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		AABBEE1100AABBEE1100AABC /* Copy .env Into Bundle */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.env",
+			);
+			name = "Copy .env Into Bundle";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/env",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\n\nSRC_ENV=\"${SRCROOT}/.env\"\nDST_DIR=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nDST_ENV=\"${DST_DIR}/env\"\n\nif [ ! -f \"${SRC_ENV}\" ]; then\n  echo \"warning: .env not found at ${SRC_ENV} (Supabase/Gemini will be unconfigured)\"\n  exit 0\nfi\n\nmkdir -p \"${DST_DIR}\"\ncp \"${SRC_ENV}\" \"${DST_ENV}\"\n\necho \"Copied .env to ${DST_ENV}\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -750,6 +780,9 @@
 				1EFD008A2F40307200461A41 /* ReviewSubmissionSheet.swift in Sources */,
 				1EFD00772F402F2B00461A41 /* UserImpact.swift in Sources */,
 				1E481E7A2EC411A7009F8B99 /* NetworkService.swift in Sources */,
+				GEMINICFG001A1B2C3D4E5F60001 /* GeminiConfig.swift in Sources */,
+				USERFACINGERR001A1B2C3D4E5F60003 /* UserFacingError.swift in Sources */,
+				GEMINISVC001A1B2C3D4E5F60002 /* GeminiService.swift in Sources */,
 				1E5163062F29D9610061EA4B /* InsightsCard.swift in Sources */,
 				1EDB10032EDBAA02001A2B3C /* OpenFoodFactsClient.swift in Sources */,
 				1E5163042F29D94C0061EA4B /* ProductComparisonView.swift in Sources */,

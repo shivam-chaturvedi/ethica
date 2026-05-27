@@ -74,10 +74,7 @@ class NetworkService: ObservableObject {
     
     // Helper to add auth token and compression headers to requests
     private func addAuthToken(to request: inout URLRequest) async {
-        // Fetch fresh token from Firebase (automatically refreshes if expired)
-        await AuthenticationService.shared.fetchAuthToken()
-
-        if let token = AuthenticationService.shared.authToken {
+        if let token = AuthenticationService.shared.authToken, !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         } else {
             AppLogger.warning("No auth token available — request will be unauthenticated")
@@ -100,45 +97,43 @@ class NetworkService: ObservableObject {
             AppLogger.debug("⚡ Skipping quick-allergen-check: offline")
             return nil
         }
-        guard let url = URL(string: "\(AppConfig.backendURL)/quick-allergen-check") else {
-            AppLogger.error("❌ Invalid URL for quick-allergen-check")
-            return nil
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 12.0  // Allow 10s Gemini + network overhead
-        await addAuthToken(to: &request)
-
-        var payload: [String: Any] = [
-            "ingredients": ingredients,
-            "userPreferences": [
-                "selectedAllergens": Array(preferences.selectedAllergens),
-                "customAllergens": preferences.customAllergens,
-                "selectedDiets": Array(preferences.selectedDiets),
-                "customDiets": preferences.customDiets,
-                "avoidGMO": preferences.avoidGMO
-            ],
-            "dietaryPreferences": Array(preferences.selectedDiets) + preferences.customDiets
-        ]
-        if let barcode = barcode { payload["barcode"] = barcode }
-        if let name = productName { payload["productName"] = name }
-        if let offData = openfoodfactsData { payload["openfoodfactsData"] = offData }
+        _ = barcode
+        _ = openfoodfactsData
 
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            AppLogger.debug("🚀 Sending quick-allergen-check for \(ingredients.count) ingredients")
+            guard GeminiConfig.isConfigured else { return nil }
 
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                AppLogger.warning("⚠️ quick-allergen-check returned non-200")
-                return nil
-            }
+            let text = ingredients.joined(separator: ", ")
+            let json = try await GeminiService.shared.analyzeIngredientsTextToAnalysisResultJSON(
+                ingredientsText: text,
+                productName: productName,
+                preferences: preferences
+            )
 
-            let result = try JSONDecoder().decode(QuickSafetyResult.self, from: data)
-            AppLogger.debug("✅ quick-allergen-check: isSafe=\(result.isSafe), violations=\(result.violations.count)")
-            return result
+            let isSafe = (json["isSafe"] as? Bool) ?? true
+            let safetyLevel = json["safetyLevel"] as? String
+            let confidence = (json["confidence"] as? Double) ?? 0.6
+            let violations = json["violations"] as? [String] ?? []
+            let warnings = json["warnings"] as? [String] ?? []
+            let cautionWarnings = json["cautionWarnings"] as? [String] ?? []
+            let detectedAllergens = json["detectedAllergens"] as? [String] ?? []
+
+            return QuickSafetyResult(
+                isSafe: isSafe,
+                safetyLevel: safetyLevel,
+                confidence: confidence,
+                violations: violations,
+                warnings: warnings,
+                cautionWarnings: cautionWarnings,
+                detectedAllergens: detectedAllergens,
+                detectionEvidence: nil,
+                crossContaminationRisks: nil,
+                gmoStatus: json["gmoStatus"] as? String,
+                sourceType: "gemini_text",
+                extractedIngredients: ingredients,
+                ingredientsText: text,
+                productName: (json["productName"] as? String) ?? productName
+            )
         } catch {
             AppLogger.warning("⚠️ quick-allergen-check failed: \(error.localizedDescription)")
             return nil
@@ -147,7 +142,7 @@ class NetworkService: ObservableObject {
 
     // MARK: - Quick Safety Check from Ingredient Photo
 
-    /// OCR ingredient photo on backend (Gemini Flash) then run safety checks. Returns in ~3-5s.
+    /// Ingredient label photo — direct Gemini API (no backend).
     func quickSafetyCheckFromPhoto(
         image: UIImage,
         preferences: UserPreferences
@@ -156,53 +151,26 @@ class NetworkService: ObservableObject {
             AppLogger.debug("⚡ Skipping quick-safety-check: offline")
             return nil
         }
-        guard let url = URL(string: "\(AppConfig.backendURL)/quick-safety-check") else {
-            AppLogger.error("❌ Invalid URL for quick-safety-check")
+        guard GeminiConfig.isConfigured else {
+            AppLogger.warning("⚠️ Gemini API key missing for label quick check")
             return nil
         }
 
-        // Resize and compress
-        let resized = resizeImage(image, maxSize: 2048)
-        guard let imageData = resized.jpegData(compressionQuality: 0.7) else {
+        let resized = resizeImage(image, maxSize: 1200)
+        guard let imageData = resized.jpegData(compressionQuality: 0.75) else {
             AppLogger.error("❌ Failed to compress ingredient photo")
             return nil
         }
-        let base64Image = imageData.base64EncodedString()
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 15.0  // Gemini OCR ~3s + safety checks + network
-        await addAuthToken(to: &request)
-
-        let payload: [String: Any] = [
-            "imageBase64": base64Image,
-            "userPreferences": [
-                "selectedAllergens": Array(preferences.selectedAllergens),
-                "customAllergens": preferences.customAllergens,
-                "selectedDiets": Array(preferences.selectedDiets),
-                "customDiets": preferences.customDiets,
-                "avoidGMO": preferences.avoidGMO,
-                "mayContainSafe": preferences.mayContainSafe
-            ]
-        ]
 
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            AppLogger.debug("🚀 Sending quick-safety-check with ingredient photo (\(imageData.count / 1024)KB)")
-
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-                AppLogger.warning("⚠️ quick-safety-check returned \(statusCode)")
-                return nil
-            }
-
-            let result = try JSONDecoder().decode(QuickSafetyResult.self, from: data)
-            AppLogger.debug("✅ quick-safety-check: isSafe=\(result.isSafe), violations=\(result.violations.count)")
+            let result = try await GeminiService.shared.quickSafetyFromLabel(
+                imageData: imageData,
+                preferences: preferences
+            )
+            AppLogger.debug("✅ Gemini quick-safety: isSafe=\(result.isSafe), violations=\(result.violations.count)")
             return result
         } catch {
-            AppLogger.warning("⚠️ quick-safety-check failed: \(error.localizedDescription)")
+            AppLogger.warning("⚠️ Gemini quick-safety failed: \(error.localizedDescription)")
             return nil
         }
     }
@@ -340,6 +308,11 @@ class NetworkService: ObservableObject {
                 self.analysisProgress = 0.3
             }
         }
+
+        // Take Photo / label OCR: direct Gemini (no Ethica backend)
+        if !useRestaurantMode {
+            return await analyzeIngredientPhotoWithGemini(image: image, preferences: preferences)
+        }
         
         // Resize image for faster upload + processing (800px is enough for AI)
         // Perform image processing on background thread to avoid blocking UI
@@ -472,92 +445,32 @@ class NetworkService: ObservableObject {
 
         AppLogger.debug("📸 Image size: \(imageData.count / 1024)KB")
 
-        let base64Image = imageData.base64EncodedString()
-
-        guard let url = URL(string: "\(AppConfig.backendURL)/identify-product") else {
-            AppLogger.debug("Invalid URL")
-            return nil
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        await addAuthToken(to: &request)
-        request.timeoutInterval = 15  // Identification-only is fast (3-5s)
-
-        let payload: [String: Any] = [
-            "imageBase64": base64Image,
-            "userPreferences": [
-                "selectedAllergens": Array(preferences.selectedAllergens),
-                "customAllergens": preferences.customAllergens,
-                "selectedDiets": Array(preferences.selectedDiets),
-                "customDiets": preferences.customDiets,
-                "avoidGMO": preferences.avoidGMO
-            ]
-        ]
-
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-
             AppLogger.debug("🔍 Identifying product from visual image...")
             await MainActor.run {
                 self.analysisProgress = 0.3
             }
+            let json = try await GeminiService.shared.identifyProductFromImage(imageData: imageData)
+            let productName = (json["product_name"] as? String) ?? "Unknown Product"
 
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw NSError(domain: "Invalid response", code: -1)
+            let identification = VisualIdentification(
+                productName: productName,
+                confidence: json["confidence"] as? Double ?? 0,
+                estimatedIngredients: json["ingredients"] as? [String] ?? [],
+                ingredientConfidence: json["ingredient_confidence"] as? Double ?? 0,
+                ingredientSource: json["ingredient_source"] as? String ?? "image_estimate",
+                productCategory: json["product_category"] as? String ?? ""
+            )
+
+            AppLogger.debug("✅ Visual identification (Gemini): \(identification.productName) (\(identification.confidence)%)")
+
+            await MainActor.run {
+                self.analysisProgress = 0.5
             }
 
-            AppLogger.debug("📡 Visual identification response status: \(httpResponse.statusCode)")
-
-            if httpResponse.statusCode == 200 {
-                // Parse identification-only response (snake_case from backend)
-                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let productName = json["product_name"] as? String else {
-                    throw NSError(domain: "Invalid identification response", code: -1)
-                }
-
-                let identification = VisualIdentification(
-                    productName: productName,
-                    confidence: json["confidence"] as? Double ?? 0,
-                    estimatedIngredients: json["ingredients"] as? [String] ?? [],
-                    ingredientConfidence: json["ingredient_confidence"] as? Double ?? 0,
-                    ingredientSource: json["ingredient_source"] as? String ?? "unknown",
-                    productCategory: json["product_category"] as? String ?? ""
-                )
-
-                AppLogger.debug("✅ Visual identification: \(identification.productName) (\(identification.confidence)%)")
-
-                await MainActor.run {
-                    self.analysisProgress = 0.5
-                }
-
-                return identification
-            } else {
-                // Parse backend error
-                var backendMessage: String?
-                if let errorJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let msg = errorJSON["error"] as? String {
-                    backendMessage = msg
-                }
-
-                await MainActor.run {
-                    self.isAnalyzing = false
-                    self.analysisProgress = 0.0
-                    if let msg = backendMessage, msg.contains("Could not identify") || msg.contains("AI says") {
-                        self.errorMessage = msg
-                    } else if httpResponse.statusCode == 429 {
-                        self.errorMessage = "Too many scans. Please wait a moment and try again."
-                    } else if httpResponse.statusCode >= 500 {
-                        self.errorMessage = "Server temporarily unavailable. Please try again in a moment."
-                    } else {
-                        self.errorMessage = "Could not identify product. Try:\n• Getting closer to product\n• Ensuring brand name is visible\n• Better lighting\n• Clearer focus"
-                    }
-                }
-                return nil
-            }
+            return identification
         } catch {
-            AppLogger.error("❌ Network error identifying product: \(error)")
+            AppLogger.error("❌ Visual identification failed: \(error)")
             await MainActor.run {
                 self.isAnalyzing = false
                 self.analysisProgress = 0.0
@@ -568,118 +481,75 @@ class NetworkService: ObservableObject {
     }
     
     private func analyzeRestaurantMenu(base64Image: String, preferences: UserPreferences) async -> AnalysisResult? {
-        guard let url = URL(string: "\(AppConfig.backendURL)/extract-menu-items") else {
-            AppLogger.debug("Invalid URL")
-            return nil
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        await addAuthToken(to: &request)
-        request.timeoutInterval = 30
-        
-        let payload: [String: Any] = [
-            "imageBase64": base64Image,
-            "isRestaurantMenu": true,
-            "user_preferences": [
-                "avoidIngredients": Array(preferences.selectedAllergens) + preferences.customAllergens,
-                "dietaryGoal": Array(preferences.selectedDiets).joined(separator: ", "),
-                "avoidGMO": preferences.avoidGMO
-            ]
-        ]
-        
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            
             AppLogger.debug("🔄 Analyzing restaurant menu...")
             await MainActor.run {
                 self.analysisProgress = 0.60 // 60% - Processing menu
             }
 
-            // Use retry logic for reliability
-            let (data, httpResponse) = try await performWithRetry(maxAttempts: 3) {
-                let (data, response) = try await URLSession.shared.data(for: request)
-                await MainActor.run {
-                    self.analysisProgress = 0.80 // 80% - Menu analyzed
-                }
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    throw NSError(domain: "Invalid response", code: -1)
-                }
-                return (data, httpResponse)
-            }
-            
-            AppLogger.debug("📡 Restaurant menu response status: \(httpResponse.statusCode)")
-            
-            if httpResponse.statusCode == 200 {
-                // Parse the menu analysis response
-                let menuResponse = try JSONDecoder().decode(MenuAnalysisResponse.self, from: data)
-                
-                guard let menuAnalysis = menuResponse.menuAnalysis, !menuAnalysis.isEmpty else {
-                    await MainActor.run {
-                        self.isAnalyzing = false
-                        self.analysisProgress = 0.0
-                        self.errorMessage = "No dishes found in menu. Please:\n• Use a clear photo of the menu\n• Ensure good lighting\n• Include dish names and descriptions"
-                    }
-                    return nil
-                }
-                
-                AppLogger.debug("✅ Found \(menuAnalysis.count) dishes in menu")
-                
-                // Convert to MenuDish format
-                let dishes = menuAnalysis.map { dish in
-                    AnalysisResult.MenuDish(
-                        dish: dish.dish ?? "Unknown Dish",
-                        ingredients: dish.ingredients ?? [],
-                        safe: dish.safe ?? false,
-                        warnings: dish.warnings ?? [],
-                        estimatedCO2: dish.estimatedCO2
-                    )
-                }
-                
-                // Count safe vs unsafe dishes
-                let safeDishes = dishes.filter { $0.safe }.count
-                let unsafeDishes = dishes.count - safeDishes
-                
-                // Create a summary result
-                let result = AnalysisResult(
-                    productName: "Restaurant Menu Analysis",
-                    overallScore: Double(safeDishes) / Double(dishes.count) * 10.0,
-                    isSafe: safeDishes > 0,
-                    confidence: 0.7, // Lower confidence for inferred ingredients
-                    confidenceFactors: ["Menu analysis based on typical ingredients"],
-                    violations: unsafeDishes > 0 ? ["\(unsafeDishes) dishes may contain restricted ingredients"] : [],
-                    warnings: ["⚠️ Always verify ingredients with restaurant staff"],
-                    cautionWarnings: ["Ingredient analysis is based on typical recipes"],
-                    ingredients: menuResponse.ingredients ?? [],
-                    detectedAllergens: [],
-                    detectionEvidence: [],
-                    healthScore: 5.0,
-                    environmentalScore: 5.0,
-                    co2Emissions: 0,
-                    waterUsage: 0,
-                    animalImpact: "Unknown",
-                    landUse: "Unknown",
-                    nutritionalHighlights: [],
-                    healthConcerns: [],
-                    healthBenefits: [],
-                    recommendations: ["\(safeDishes) dishes appear safe for your preferences"],
-                    alternatives: [],
-                    environmentalBreakdown: [],
-                    isRestaurantMenu: true,
-                    menuDishes: dishes
-                )
-                
+            guard let imageData = Data(base64Encoded: base64Image) else { return nil }
+            let json = try await GeminiService.shared.extractMenuDishesFromImage(imageData: imageData, preferences: preferences)
+            let items = (json["menuAnalysis"] as? [[String: Any]]) ?? []
+
+            guard !items.isEmpty else {
                 await MainActor.run {
                     self.isAnalyzing = false
-                    self.analysisProgress = 1.0
+                    self.analysisProgress = 0.0
+                    self.errorMessage = "No dishes found in menu. Please:\n• Use a clear photo of the menu\n• Ensure good lighting\n• Include dish names and descriptions"
                 }
-                
-                return result
-            } else {
-                let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
-                AppLogger.error("❌ Restaurant menu analysis error: \(errorText)")
-                throw NSError(domain: errorText, code: httpResponse.statusCode)
+                return nil
             }
+
+            let dishes: [AnalysisResult.MenuDish] = items.map { dish in
+                AnalysisResult.MenuDish(
+                    dish: dish["dish"] as? String ?? "Unknown Dish",
+                    ingredients: dish["ingredients"] as? [String] ?? [],
+                    safe: dish["safe"] as? Bool ?? false,
+                    warnings: dish["warnings"] as? [String] ?? [],
+                    estimatedCO2: dish["estimatedCO2"] as? Double
+                )
+            }
+
+            let safeDishes = dishes.filter { $0.safe }.count
+            let unsafeDishes = dishes.count - safeDishes
+
+            let result = AnalysisResult(
+                productName: "Restaurant Menu Analysis",
+                overallScore: dishes.isEmpty ? 0 : (Double(safeDishes) / Double(dishes.count) * 10.0),
+                isSafe: safeDishes > 0,
+                confidence: 0.7,
+                confidenceFactors: ["Menu analysis based on typical ingredients"],
+                violations: unsafeDishes > 0 ? ["\(unsafeDishes) dishes may contain restricted ingredients"] : [],
+                warnings: ["⚠️ Always verify ingredients with restaurant staff"],
+                cautionWarnings: ["Ingredient analysis is based on typical recipes"],
+                ingredients: [],
+                detectedAllergens: [],
+                detectionEvidence: [],
+                healthScore: 5.0,
+                environmentalScore: 5.0,
+                co2Emissions: 0,
+                waterUsage: 0,
+                animalImpact: "Unknown",
+                landUse: "Unknown",
+                nutritionalHighlights: [],
+                healthConcerns: [],
+                healthBenefits: [],
+                recommendations: ["\(safeDishes) dishes appear safe for your preferences"],
+                alternatives: [],
+                environmentalBreakdown: [],
+                sourceBarcode: nil,
+                sourceType: "restaurant_menu",
+                timestamp: Date(),
+                isRestaurantMenu: true,
+                menuDishes: dishes
+            )
+
+            await MainActor.run {
+                self.isAnalyzing = false
+                self.analysisProgress = 1.0
+            }
+
+            return result
         } catch {
             AppLogger.error("❌ Error analyzing restaurant menu: \(error)")
             await MainActor.run {
@@ -691,279 +561,130 @@ class NetworkService: ObservableObject {
         }
     }
     
-    private func extractIngredientsOrMatchProduct(base64Image: String, preferences: UserPreferences, isRestaurantMenu: Bool = false) async -> ExtractResult {
-        guard isConnected else {
-            AppLogger.debug("⚡ Skipping \(isRestaurantMenu ? "menu" : "ingredient") extraction: offline")
-            return .error
-        }
-        let endpoint = isRestaurantMenu ? "/extract-menu-items" : "/extract-ingredients"
-        guard let url = URL(string: "\(AppConfig.backendURL)\(endpoint)") else {
-            AppLogger.debug("Invalid URL")
-            return .error
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        await addAuthToken(to: &request)
-        request.timeoutInterval = 30
-        
-        // Build payload - include user preferences for restaurant mode
-        var payload: [String: Any] = [
-            "imageBase64": base64Image,
-            "isRestaurantMenu": isRestaurantMenu
-        ]
-        
-        // Add user preferences for restaurant menu analysis
-        if isRestaurantMenu {
-            payload["user_preferences"] = [
-                "avoidIngredients": Array(preferences.selectedAllergens) + preferences.customAllergens,
-                "dietaryGoal": Array(preferences.selectedDiets).joined(separator: ", "),
-                "avoidGMO": preferences.avoidGMO
-            ]
-        }
-        
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            
-            AppLogger.debug("🔄 Extracting ingredients from image...")
-            await MainActor.run {
-                self.analysisProgress = 0.55 // 55% - Sending to Vision API
-            }
+    // MARK: - Ingredient label photo (Gemini, on-device API key)
 
-            // Use retry logic for reliability
-            let (data, httpResponse): (Data, HTTPURLResponse)
-            do {
-                (data, httpResponse) = try await performWithRetry(maxAttempts: 3) {
-                    let (data, response) = try await URLSession.shared.data(for: request)
-                    await MainActor.run {
-                        self.analysisProgress = 0.65 // 65% - Processing OCR response
-                    }
-                    guard let httpResponse = response as? HTTPURLResponse else {
-                        throw NSError(domain: "Invalid response", code: -1)
-                    }
-                    return (data, httpResponse)
-                }
-            } catch {
-                return .error
-            }
-            
-            AppLogger.debug("📡 Extract response status: \(httpResponse.statusCode)")
-            
-            if httpResponse.statusCode == 200 {
-                let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-                let ingredients = json?["ingredients"] as? [String] ?? []
-                let dataSource = json?["dataSource"] as? String ?? "ocr_only"
-                let extractedProductName = json?["productName"] as? String
-                let extractedOcrText = json?["ocrText"] as? String
-                let allergenContains = json?["allergenContains"] as? [String] ?? []
-                let allergenMayContain = json?["allergenMayContain"] as? [String] ?? []
-                let ocrConfidenceWarning = json?["ocrConfidenceWarning"] as? String
-                let gmoDeclaration = json?["gmoDeclaration"] as? String
-                
-                // NEW: Check if we found a matching product in OpenFoodFacts
-                if let matchedProduct = json?["matchedProduct"] as? [String: Any],
-                   dataSource == "openfoodfacts" {
-                    AppLogger.debug("✅ OCR scan matched to OpenFoodFacts product!")
-                    
-                    // Use ProductDatabaseService to handle the matched product
-                    // This gives us the same accuracy as barcode scans
-                    let productName = matchedProduct["product_name"] as? String ?? "Unknown Product"
-                    let barcode = matchedProduct["code"] as? String ?? ""
-                    let matchConfidence = matchedProduct["match_confidence"] as? Double ?? 0.0
-                    
-                    AppLogger.debug("   Product: \(productName)")
-                    AppLogger.debug("   Barcode: \(barcode)")
-                    AppLogger.debug("   Match confidence: \(matchConfidence)%")
-                    
-                    // Look up the product using its barcode for full accuracy
-                    if !barcode.isEmpty {
-                        AppLogger.debug("🔄 Looking up matched product by barcode for full data...")
-                        if let fullProduct = await productDatabaseService.lookupBarcode(barcode, preferences: preferences) {
-                            AppLogger.debug("✅ Retrieved full product data from OpenFoodFacts")
-                            
-                            // Save to history
-                            let scanHistory = ScanHistory(from: fullProduct)
-                            AppLogger.debug("💾 Saving OCR->OpenFoodFacts matched scan to history")
-                            HistoryService.shared.saveScan(scanHistory)
-                            
-                            await MainActor.run {
-                                self.isAnalyzing = false
-                                self.analysisProgress = 1.0
-                            }
-                            
-                            return .matchedProduct(fullProduct)
-                        }
-                    }
-                }
-                
-                if ingredients.isEmpty {
-                    await MainActor.run {
-                        self.isAnalyzing = false
-                    self.analysisProgress = 0.0
-                        self.errorMessage = "No text found in image. Please:\n• Use a clear photo of the ingredient label\n• Ensure good lighting\n• Hold camera steady\n• Try a different angle"
-                    }
-                    return .error
-                }
-                
-                return .ingredients(ingredients, productName: extractedProductName, ocrText: extractedOcrText, allergenContains: allergenContains, allergenMayContain: allergenMayContain, ocrConfidenceWarning: ocrConfidenceWarning, gmoDeclaration: gmoDeclaration)
-            } else {
-                let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
-                AppLogger.error("❌ Extract error: \(errorText)")
-                throw NSError(domain: errorText, code: httpResponse.statusCode)
-            }
-        } catch {
-            AppLogger.error("❌ Network error extracting ingredients: \(error)")
-            
-            // Provide helpful error messages
-            var userMessage = "Failed to extract ingredients"
-            if let urlError = error as? URLError {
-                switch urlError.code {
-                case .notConnectedToInternet:
-                    userMessage = "No internet connection. Please check your network."
-                case .cannotFindHost, .cannotConnectToHost:
-                    userMessage = "Cannot reach backend server (\(AppConfig.backendURL)). Please try again later."
-                case .timedOut:
-                    userMessage = "Request timed out. Please check your connection and try again."
-                case .badServerResponse:
-                    userMessage = "Server error. Please try again."
-                default:
-                    userMessage = "Network error: \(error.localizedDescription)"
-                }
-            } else {
-                userMessage = error.localizedDescription
-            }
-            
+    private func analyzeIngredientPhotoWithGemini(
+        image: UIImage,
+        preferences: UserPreferences
+    ) async -> AnalysisResult? {
+        guard GeminiConfig.isConfigured else {
             await MainActor.run {
                 self.isAnalyzing = false
-                self.errorMessage = userMessage
+                self.analysisProgress = 0.0
+                self.errorMessage = GeminiConfig.missingKeyMessage
             }
-            return .error
-        }
-    }
-    
-    private func analyzeIngredients(_ ingredients: [String], preferences: UserPreferences, ingredientsList: [String], productName: String? = nil, ingredientsText: String? = nil, allergenContains: [String] = [], allergenMayContain: [String] = [], gmoDeclaration: String? = nil) async -> AnalysisResult? {
-        guard let url = URL(string: "\(AppConfig.backendURL)/comprehensive-analysis") else {
-            AppLogger.debug("Invalid URL")
             return nil
         }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        await addAuthToken(to: &request)
-        request.timeoutInterval = 60 // Increased for complex AI analysis with many ingredients
-        
-        // Get dietary preferences
-        let allDiets = Array(preferences.selectedDiets)
-        
-        var payload: [String: Any] = [
-            "ingredients": ingredients,
-            "userPreferences": preferences.toJSON(),
-            "dietaryPreferences": allDiets.isEmpty ? ["none"] : allDiets
-        ]
-        // Forward OCR context so backend can try OpenFoodFacts enrichment
-        if let name = productName {
-            payload["productName"] = name
-        }
-        if let text = ingredientsText {
-            payload["ingredientsText"] = text
-        }
-        // Forward label allergen declarations from OCR extraction
-        if !allergenContains.isEmpty {
-            payload["allergenContains"] = allergenContains
-        }
-        if !allergenMayContain.isEmpty {
-            payload["allergenMayContain"] = allergenMayContain
-        }
-        // Forward GMO label declaration from OCR extraction
-        if let gmo = gmoDeclaration {
-            payload["gmoDeclaration"] = gmo
-        }
-        
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            AppLogger.debug("🔄 Sending request to: \(AppConfig.backendURL)/comprehensive-analysis")
-            await MainActor.run {
-                self.analysisProgress = 0.8 // 80% - Sending AI analysis request
-            }
 
-            // Use retry logic for reliability (most critical endpoint)
-            let (data, httpResponse) = try await performWithRetry(maxAttempts: 3) {
-                let (data, response) = try await URLSession.shared.data(for: request)
-                await MainActor.run {
-                    self.analysisProgress = 0.9 // 90% - Processing AI analysis
-                }
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    throw NSError(domain: "Invalid response", code: -1)
-                }
-                return (data, httpResponse)
+        let imageData: Data? = await Task.detached(priority: .userInitiated) {
+            let resized = self.resizeImage(image, maxSize: 1200)
+            return resized.jpegData(compressionQuality: 0.75)
+        }.value
+
+        guard let imageData = imageData else {
+            await MainActor.run {
+                self.isAnalyzing = false
+                self.errorMessage = "Failed to process image"
             }
-            AppLogger.debug("📡 Response status: \(httpResponse.statusCode)")
-            if let jsonString = String(data: data, encoding: .utf8) {
-                AppLogger.debug("📦 Raw JSON response:")
-                AppLogger.debug(jsonString)
-            }
-            if httpResponse.statusCode == 200 {
-                do {
-                    let backendResponse = try JSONDecoder().decode(BackendResponse.self, from: data)
-                    AppLogger.debug("✅ Successfully decoded response")
-                    var result = await convertToAnalysisResult(backendResponse, ingredients: ingredientsList, preferences: preferences)
-                    // Client-side Jain validation on OCR path results
-                    if let validated = applyJainValidation(result, preferences: preferences) {
-                        result = validated
-                    }
+            return nil
+        }
+
+        await MainActor.run { self.analysisProgress = 0.35 }
+
+        do {
+            AppLogger.debug("🤖 Take Photo: Gemini label analysis (\(imageData.count / 1024)KB)")
+            let backendResponse = try await GeminiService.shared.analyzeIngredientLabel(
+                imageData: imageData,
+                preferences: preferences
+            )
+            let ingredients = backendResponse.ingredients ?? []
+
+            if ingredients.isEmpty {
+                let violations = backendResponse.violations ?? []
+                if violations.contains(where: { $0.lowercased().contains("no readable") || $0.lowercased().contains("no text") }) {
                     await MainActor.run {
                         self.isAnalyzing = false
-                        self.analysisProgress = 1.0
-                    }
-                    return result
-                } catch let decodingError {
-                    AppLogger.error("❌ Decoding error: \(decodingError)")
-                    if let decodingError = decodingError as? DecodingError {
-                        switch decodingError {
-                        case .keyNotFound(let key, let context):
-                            AppLogger.error("❌ Missing key: \(key.stringValue)")
-                            AppLogger.error("❌ Context: \(context.debugDescription)")
-                        case .typeMismatch(let type, let context):
-                            AppLogger.error("❌ Type mismatch for type: \(type)")
-                            AppLogger.error("❌ Context: \(context.debugDescription)")
-                        case .valueNotFound(let type, let context):
-                            AppLogger.error("❌ Value not found for type: \(type)")
-                            AppLogger.error("❌ Context: \(context.debugDescription)")
-                        case .dataCorrupted(let context):
-                            AppLogger.error("❌ Data corrupted: \(context.debugDescription)")
-                        @unknown default:
-                            AppLogger.error("❌ Unknown decoding error")
-                        }
-                    }
-                    // Show decoding error in UI for easier debugging
-                    await MainActor.run {
-                        self.errorMessage = "Decoding error: \(decodingError.localizedDescription)\nCheck Xcode console for details."
-                        self.isAnalyzing = false
-                    self.analysisProgress = 0.0
+                        self.analysisProgress = 0.0
+                        self.errorMessage = "No text found in image. Please:\n• Use a clear photo of the ingredient label\n• Ensure good lighting\n• Hold camera steady"
                     }
                     return nil
                 }
-            } else {
-                let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
-                AppLogger.error("❌ Server error: \(errorText)")
-                var userMessage = "Server error"
-                if errorText.contains("No ingredients") {
-                    userMessage = "No text found in image. Please:\n• Use a clear photo of the ingredient label\n• Ensure good lighting\n• Hold camera steady\n• Try a different angle"
-                } else {
-                    userMessage = errorText
-                }
-                await MainActor.run {
-                    self.errorMessage = userMessage
-                    self.isAnalyzing = false
-                    self.analysisProgress = 0.0
-                }
-                return nil
             }
+
+            await MainActor.run { self.analysisProgress = 0.75 }
+
+            var result = await convertToAnalysisResult(backendResponse, ingredients: ingredients, preferences: preferences)
+            if let validated = applyJainValidation(result, preferences: preferences) {
+                result = validated
+            }
+
+            AppLogger.debug("🏷️ Gemini label result: \(result.productName)")
+            let scanHistory = ScanHistory(from: result)
+            HistoryService.shared.saveScan(scanHistory)
+            OfflineCacheService.shared.cacheResult(CachedScanResult(from: result))
+
+            await MainActor.run {
+                self.isAnalyzing = false
+                self.analysisProgress = 1.0
+            }
+            return result
         } catch {
-            AppLogger.error("❌ Network error: \(error)")
+            AppLogger.error("❌ Gemini label analysis: \(error.localizedDescription)")
+            await MainActor.run {
+                self.isAnalyzing = false
+                self.analysisProgress = 0.0
+                self.errorMessage = error.localizedDescription
+            }
+            return nil
+        }
+    }
+
+    private func extractIngredientsOrMatchProduct(base64Image: String, preferences: UserPreferences, isRestaurantMenu: Bool = false) async -> ExtractResult {
+        _ = base64Image
+        _ = preferences
+        _ = isRestaurantMenu
+        // Backend-less build: ingredient/menu extraction is handled by Gemini directly in
+        // `analyzeIngredientPhotoWithGemini` and `analyzeRestaurantMenu`.
+        return .error
+    }
+    
+    private func analyzeIngredients(_ ingredients: [String], preferences: UserPreferences, ingredientsList: [String], productName: String? = nil, ingredientsText: String? = nil, allergenContains: [String] = [], allergenMayContain: [String] = [], gmoDeclaration: String? = nil) async -> AnalysisResult? {
+        do {
+            _ = ingredientsList
+            _ = allergenContains
+            _ = allergenMayContain
+            _ = gmoDeclaration
+
+            let text = ingredientsText ?? ingredients.joined(separator: ", ")
+            let json = try await GeminiService.shared.analyzeIngredientsTextToAnalysisResultJSON(
+                ingredientsText: text,
+                productName: productName,
+                preferences: preferences
+            )
+            let data = try JSONSerialization.data(withJSONObject: json)
+
+            await MainActor.run {
+                self.analysisProgress = 0.8 // 80% - Sending AI analysis request
+            }
+            await MainActor.run { self.analysisProgress = 0.9 }
+
+            var result = try JSONDecoder().decode(AnalysisResult.self, from: data)
+            if let validated = applyJainValidation(result, preferences: preferences) {
+                result = validated
+            }
+
+            await MainActor.run {
+                self.isAnalyzing = false
+                self.analysisProgress = 1.0
+            }
+
+            return result
+        } catch {
+            AppLogger.error("❌ Gemini analysis error: \(error)")
             await MainActor.run {
                 self.isAnalyzing = false
                 self.errorMessage = "Error: \(error.localizedDescription)"
+                self.analysisProgress = 0.0
             }
             return nil
         }
@@ -1364,183 +1085,33 @@ class NetworkService: ObservableObject {
     /// Lazy-load alternatives from backend when they weren't included in the initial response.
     /// Called by ResultsView when alternatives are empty but alternativesMetadata is available.
     func fetchAlternatives(metadata: AnalysisResult.AlternativesMetadata, preferences: UserPreferences) async -> [AnalysisResult.Alternative] {
-        guard let url = URL(string: "\(AppConfig.backendURL)/fetch-alternatives") else {
-            AppLogger.debug("Invalid URL for fetch-alternatives")
-            return []
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        await addAuthToken(to: &request)
-        request.timeoutInterval = 25
-
-        let payload: [String: Any] = [
-            "productName": metadata.productName,
-            "category": metadata.category,
-            "categoriesTags": metadata.categoriesTags,
-            "sourceBarcode": metadata.sourceBarcode ?? "",
-            "sourceBrand": metadata.sourceBrand ?? "",
-            "diets": Array(preferences.selectedDiets) + preferences.customDiets,
-            "allergens": Array(preferences.selectedAllergens) + preferences.customAllergens,
-            "userPreferences": preferences.toJSON()
-        ]
-
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                AppLogger.warning("⚠️ fetch-alternatives returned non-200")
-                return []
-            }
-
-            struct AlternativesResponse: Codable {
-                let alternatives: [AnalysisResult.Alternative]
-            }
-
-            let result = try JSONDecoder().decode(AlternativesResponse.self, from: data)
-            AppLogger.debug("✅ Lazy-loaded \(result.alternatives.count) alternatives")
-            return result.alternatives
+            guard GeminiConfig.isConfigured else { return [] }
+            let alts = try await GeminiService.shared.suggestAlternatives(
+                productName: metadata.productName,
+                category: metadata.category,
+                brand: metadata.sourceBrand,
+                preferences: preferences
+            )
+            AppLogger.debug("✅ Gemini suggested \(alts.count) alternatives")
+            return alts
         } catch {
-            AppLogger.error("❌ Error fetching alternatives: \(error.localizedDescription)")
+            AppLogger.error("❌ Error fetching alternatives (Gemini): \(error.localizedDescription)")
             return []
         }
     }
 
     func analyzeAlternative(_ alternative: AnalysisResult.Alternative) async throws -> (co2: Double, water: Double) {
-        AppLogger.debug("🔬 Analyzing alternative: \(alternative.name)")
-
-        guard let url = URL(string: "\(AppConfig.backendURL)/analyze-alternative") else {
-            throw NSError(domain: "NetworkService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        await addAuthToken(to: &request)
-        request.timeoutInterval = 15
-        
-        let body: [String: Any] = [
-            "name": alternative.name,
-            "brand": alternative.brand ?? ""
-        ]
-        
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw NSError(domain: "NetworkService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
-        }
-        
-        struct AlternativeAnalysis: Codable {
-            let estimatedCO2: Double
-            let estimatedWater: Double
-            let confidence: Int?
-            let reasoning: String?
-        }
-        
-        let result = try JSONDecoder().decode(AlternativeAnalysis.self, from: data)
-        AppLogger.debug("✅ Backend analysis: CO2=\(result.estimatedCO2)kg, Water=\(result.estimatedWater)L, Confidence=\(result.confidence ?? 0)%")
-
-        return (result.estimatedCO2, result.estimatedWater)
+        let co2 = alternative.estimatedCO2 ?? AnalysisResult.Alternative.estimateCO2(from: alternative.name)
+        let water = alternative.estimatedWater ?? AnalysisResult.Alternative.estimateWater(from: alternative.name)
+        return (co2, water)
     }
 
     /// Enrich alternatives with OpenFoodFacts data (health, environment, ethics scores)
     /// Returns enriched alternatives array with real data where available
     func enrichAlternatives(_ alternatives: [AnalysisResult.Alternative]) async -> [AnalysisResult.Alternative] {
-        guard !alternatives.isEmpty else { return [] }
-
-        AppLogger.debug("🔍 Enriching \(alternatives.count) alternatives with OpenFoodFacts data...")
-
-        guard let url = URL(string: "\(AppConfig.backendURL)/enrich-alternatives") else {
-            AppLogger.debug("Invalid URL")
-            return alternatives
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        await addAuthToken(to: &request)
-        request.timeoutInterval = 5  // Short timeout for comparison view
-
-        // Convert alternatives to JSON
-        let alternativesArray = alternatives.map { alt -> [String: Any] in
-            var dict: [String: Any] = [
-                "name": alt.name,
-                "brand": alt.brand ?? "",
-                "reason": alt.reason ?? ""
-            ]
-            if let co2 = alt.estimatedCO2 {
-                dict["estimatedCO2"] = co2
-            }
-            if let water = alt.estimatedWater {
-                dict["estimatedWater"] = water
-            }
-            return dict
-        }
-
-        let body: [String: Any] = ["alternatives": alternativesArray]
-
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                AppLogger.warning("⚠️ Enrichment failed - using AI estimates")
-                return alternatives  // Return original if enrichment fails
-            }
-
-            struct EnrichmentResponse: Codable {
-                let enriched: [EnrichedAlternative]
-            }
-
-            struct EnrichedAlternative: Codable {
-                let name: String
-                let brand: String?
-                let reason: String?
-                let estimatedCO2: Double?
-                let estimatedWater: Double?
-                let healthScore: Double?
-                let environmentalScore: Double?
-                let ethicsScore: Double?
-                let barcode: String?
-                let isEnriched: Bool?
-                let dataSource: String?
-            }
-
-            let enrichmentResult = try JSONDecoder().decode(EnrichmentResponse.self, from: data)
-
-            // Convert enriched data back to Alternative objects
-            let enrichedAlternatives = enrichmentResult.enriched.map { enriched -> AnalysisResult.Alternative in
-                AnalysisResult.Alternative(
-                    name: enriched.name,
-                    brand: enriched.brand,
-                    reason: enriched.reason,
-                    imageURL: nil,
-                    link: nil,
-                    estimatedCO2: enriched.estimatedCO2,
-                    estimatedWater: enriched.estimatedWater,
-                    healthScore: enriched.healthScore,
-                    environmentalScore: enriched.environmentalScore,
-                    ethicsScore: enriched.ethicsScore,
-                    barcode: enriched.barcode,
-                    isEnriched: enriched.isEnriched ?? false,
-                    dataSource: enriched.dataSource
-                )
-            }
-
-            let enrichedCount = enrichedAlternatives.filter { $0.isEnriched }.count
-            AppLogger.debug("✅ Enriched \(enrichedCount)/\(alternatives.count) alternatives with real data")
-
-            return enrichedAlternatives
-
-        } catch {
-            AppLogger.error("❌ Enrichment error: \(error.localizedDescription)")
-            return alternatives  // Return original on error
-        }
+        // Backend-less build: keep AI estimates (and any OpenFoodFacts-enriched values already present).
+        return alternatives
     }
 
     /// Public accessor for pre-resizing from ScannerView (runs on background thread).
@@ -1571,255 +1142,74 @@ class NetworkService: ObservableObject {
     }
     
     // MARK: - Purchase Decision Tracking
-    
-    // DEPRECATED: Use submitPurchaseDecision() instead
-    // This function is not called anywhere in the codebase
-    /*
-    func savePurchaseDecision(
-        userId: String,
-        scanId: String,
-        productName: String,
-        decision: String,
-        productCO2: Double,
-        productWater: Double,
-        alternativeName: String? = nil,
-        alternativeCO2: Double? = nil,
-        alternativeWater: Double? = nil
-    ) async throws {
-        guard let url = URL(string: "\(AppConfig.backendURL)/save-purchase-decision") else {
-            throw NSError(domain: "NetworkService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        await addAuthToken(to: &request)
-        request.timeoutInterval = 15
-
-        var body: [String: Any] = [
-            "userId": userId,
-            "scanId": scanId,
-            "productName": productName,
-            "decision": decision,
-            "productCO2": productCO2,
-            "productWater": productWater,
-            "timestamp": Date().timeIntervalSince1970
-        ]
-
-        if let altName = alternativeName {
-            body["alternativeName"] = altName
-        }
-        if let altCO2 = alternativeCO2 {
-            body["alternativeCO2"] = altCO2
-        }
-        if let altWater = alternativeWater {
-            body["alternativeWater"] = altWater
-        }
-
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw NSError(domain: "NetworkService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to save purchase decision"])
-        }
-
-        let result = try JSONDecoder().decode([String: AnyCodable].self, from: data)
-        AppLogger.debug("✅ Purchase decision saved: \(result)")
-    }
-    */
 
     // REMOVED: logAlternativeInteraction - Now handled exclusively by HistoryService.swift (local SQLite)
     // Alternative interactions are tracked locally for better offline support and data consistency
     // If backend analytics are needed, they should query the local database during sync operations
 
     func getUserImpact(userId: String) async throws -> UserImpactData {
-        guard let url = URL(string: "\(AppConfig.backendURL)/get-user-impact") else {
-            throw NSError(domain: "NetworkService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        await addAuthToken(to: &request)
-        request.timeoutInterval = 15
-        
-        let body: [String: Any] = ["userId": userId]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        AppLogger.debug("🌐 Fetching user impact from: \(url)")
-        AppLogger.debug("📤 Request body: \(body)")
-        
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw NSError(domain: "NetworkService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
-            }
-            
-            AppLogger.debug("📥 Response status: \(httpResponse.statusCode)")
-            
-            if httpResponse.statusCode != 200 {
-                let errorBody = String(data: data, encoding: .utf8) ?? "No error body"
-                AppLogger.error("❌ Backend error: \(errorBody)")
-                throw NSError(domain: "NetworkService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Backend returned \(httpResponse.statusCode): \(errorBody)"])
-            }
-            
-            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to decode"
-            AppLogger.debug("📦 Response body: \(responseBody)")
-            
-            let result = try JSONDecoder().decode(UserImpactData.self, from: data)
-            AppLogger.debug("✅ Successfully decoded user impact: \(result.totalScans) scans")
-            return result
-        } catch let error as NSError {
-            AppLogger.error("❌ Network error: \(error.localizedDescription)")
-            throw error
-        }
+        _ = userId
+        let stats = ImpactCalculator.shared.calculateImpactStats()
+        return UserImpactData(
+            totalScans: stats.totalScans,
+            totalCO2Impact: stats.yourCO2Footprint,
+            totalWaterImpact: stats.yourWaterFootprint,
+            co2Saved: stats.totalCO2Saved,
+            co2Generated: stats.yourCO2Footprint,
+            waterSaved: stats.totalWaterSaved,
+            waterGenerated: stats.yourWaterFootprint,
+            decisions: UserImpactData.DecisionCounts(
+                bought: stats.productsPurchased,
+                avoided: stats.productsAvoided,
+                bought_alternative: stats.alternativesChosen
+            )
+        )
     }
     
+    // MARK: - Plate Check (Gemini, on-device API key)
+
     func analyzePlate(image: UIImage, preferences: UserPreferences, restaurantName: String, dishName: String, cuisineType: String) async -> [String: Any]? {
-        guard await checkNetworkConnection() else {
-            await MainActor.run {
-                self.isAnalyzing = false
-                self.analysisProgress = 0.0
-            }
-            return nil
-        }
-        
-        await MainActor.run {
-            self.isAnalyzing = true
-            self.errorMessage = nil
-            self.analysisProgress = 0.0
-        }
-        
-        // Resize image for faster upload
-        // Perform on background thread to avoid blocking UI
         let imageData: Data? = await Task.detached(priority: .userInitiated) {
             let resized = self.resizeImage(image, maxSize: 800)
             return resized.jpegData(compressionQuality: 0.8)
         }.value
-
         guard let imageData = imageData else {
             await MainActor.run {
-                self.isAnalyzing = false
-                self.analysisProgress = 0.0
                 self.errorMessage = "Could not process image"
             }
             return nil
         }
-        
-        let base64Image = imageData.base64EncodedString()
-        guard let url = URL(string: "\(AppConfig.backendURL)/analyze-plate") else {
-            AppLogger.debug("Invalid URL")
-            return nil
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        await addAuthToken(to: &request)
-        request.timeoutInterval = 60
-        
-        let payload: [String: Any] = [
-            "imageBase64": base64Image,
-            "userPreferences": [
-                "selectedAllergens": Array(preferences.selectedAllergens),
-                "customAllergens": preferences.customAllergens,
-                "selectedDiets": Array(preferences.selectedDiets),
-                "customDiets": preferences.customDiets,
-                "avoidIngredients": Array(preferences.selectedAllergens) + preferences.customAllergens,
-                "dietaryPreferences": Array(preferences.selectedDiets) + preferences.customDiets,
-                "healthPriority": preferences.healthPriority,
-                "environmentPriority": preferences.environmentPriority,
-                "ethicsPriority": preferences.ethicsPriority,
-                "mayContainSafe": preferences.mayContainSafe,
-                "avoidGMO": preferences.avoidGMO
-            ],
-            "restaurantName": restaurantName,
-            "dishName": dishName,
-            "cuisineType": cuisineType
-        ]
-        
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            
-            AppLogger.debug("🍽️ Analyzing plate photo...")
-            await MainActor.run {
-                self.analysisProgress = 0.3
-            }
-            
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw NSError(domain: "Invalid response", code: -1)
-            }
-            
-            AppLogger.debug("📡 Plate analysis response status: \(httpResponse.statusCode)")
-            
-            if httpResponse.statusCode == 200 {
-                await MainActor.run {
-                    self.analysisProgress = 0.9
-                }
-                
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    AppLogger.debug("✅ Plate analysis complete")
-                    await MainActor.run {
-                        self.isAnalyzing = false
-                        self.analysisProgress = 1.0
-                    }
-                    return json
-                } else {
-                    throw NSError(domain: "Invalid JSON", code: -1)
-                }
-            } else {
-                let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
-                AppLogger.error("❌ Plate analysis error: \(errorText)")
-                
-                await MainActor.run {
-                    self.isAnalyzing = false
-                    self.analysisProgress = 0.0
-                    self.errorMessage = "Could not analyze plate. Try:\n• Better lighting\n• Clearer photo\n• Include full dish"
-                }
-                
-                return nil
-            }
-        } catch {
-            AppLogger.error("❌ Network error analyzing plate: \(error)")
-            
-            await MainActor.run {
-                self.isAnalyzing = false
-                self.analysisProgress = 0.0
-                self.errorMessage = "Failed to analyze plate: \(error.localizedDescription)"
-            }
-            
-            return nil
-        }
+        return await analyzePlateStreaming(
+            imageData: imageData,
+            preferences: preferences,
+            restaurantName: restaurantName,
+            dishName: dishName,
+            cuisineType: cuisineType
+        )
     }
 
-    // MARK: - Plate Analysis (SSE Streaming — Two Phase)
-
-    /// Streams plate analysis via SSE. Returns Phase 1 (safety verdict) immediately.
-    /// Phase 2 detail is published to `NetworkService.plateDetailSubject`.
-    /// Falls back to non-SSE `analyzePlate()` on error.
-    /// Convenience overload: resizes UIImage then delegates to the Data overload.
     func analyzePlateStreaming(image: UIImage, preferences: UserPreferences, restaurantName: String, dishName: String, cuisineType: String) async -> [String: Any]? {
-        // Resize image on background thread
         let imageData: Data? = await Task.detached(priority: .userInitiated) {
             let resized = self.resizeImage(image, maxSize: 800)
             return resized.jpegData(compressionQuality: 0.8)
         }.value
-
         guard let imageData = imageData else {
             await MainActor.run {
                 self.isAnalyzing = false
-                self.analysisProgress = 0.0
                 self.errorMessage = "Could not process image"
             }
             return nil
         }
-
-        return await analyzePlateStreaming(imageData: imageData, preferences: preferences, restaurantName: restaurantName, dishName: dishName, cuisineType: cuisineType)
+        return await analyzePlateStreaming(
+            imageData: imageData,
+            preferences: preferences,
+            restaurantName: restaurantName,
+            dishName: dishName,
+            cuisineType: cuisineType
+        )
     }
 
-    /// Core overload accepting pre-encoded JPEG data (skips resize when data is already prepared).
+    /// Plate Check via Google Gemini API. Publishes full detail to `plateDetailSubject`.
     func analyzePlateStreaming(imageData: Data, preferences: UserPreferences, restaurantName: String, dishName: String, cuisineType: String) async -> [String: Any]? {
         guard await checkNetworkConnection() else {
             await MainActor.run {
@@ -1829,207 +1219,55 @@ class NetworkService: ObservableObject {
             return nil
         }
 
-        // Bump generation to invalidate any in-flight Phase 2 from a previous scan
+        guard GeminiConfig.isConfigured else {
+            await MainActor.run {
+                self.isAnalyzing = false
+                self.analysisProgress = 0.0
+                self.errorMessage = GeminiConfig.missingKeyMessage
+            }
+            return nil
+        }
+
         plateStreamGeneration += 1
         let myGeneration = plateStreamGeneration
-
-        // Reset detail subject for new scan
         NetworkService.plateDetailSubject.send(nil)
 
         await MainActor.run {
             self.isAnalyzing = true
             self.errorMessage = nil
-            self.analysisProgress = 0.0
+            self.analysisProgress = 0.2
         }
-
-        let base64Image = imageData.base64EncodedString()
-        guard let url = URL(string: "\(AppConfig.backendURL)/analyze-plate") else {
-            AppLogger.debug("Invalid URL")
-            return nil
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        await addAuthToken(to: &request)
-        request.timeoutInterval = 60
-
-        let payload: [String: Any] = [
-            "imageBase64": base64Image,
-            "userPreferences": [
-                "selectedAllergens": Array(preferences.selectedAllergens),
-                "customAllergens": preferences.customAllergens,
-                "selectedDiets": Array(preferences.selectedDiets),
-                "customDiets": preferences.customDiets,
-                "avoidIngredients": Array(preferences.selectedAllergens) + preferences.customAllergens,
-                "dietaryPreferences": Array(preferences.selectedDiets) + preferences.customDiets,
-                "healthPriority": preferences.healthPriority,
-                "environmentPriority": preferences.environmentPriority,
-                "ethicsPriority": preferences.ethicsPriority,
-                "mayContainSafe": preferences.mayContainSafe,
-                "avoidGMO": preferences.avoidGMO
-            ],
-            "restaurantName": restaurantName,
-            "dishName": dishName,
-            "cuisineType": cuisineType
-        ]
 
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+            AppLogger.debug("🤖 Plate Check: Gemini analysis (\(imageData.count / 1024)KB)")
+            let json = try await GeminiService.shared.analyzePlate(
+                imageData: imageData,
+                preferences: preferences,
+                restaurantName: restaurantName,
+                dishName: dishName,
+                cuisineType: cuisineType
+            )
+
+            await MainActor.run { self.analysisProgress = 0.85 }
+
+            if myGeneration == self.plateStreamGeneration {
+                var detail = PlateAnalysis(from: json)
+                detail.detailLoaded = true
+                NetworkService.plateDetailSubject.send(detail)
+            }
+
+            await MainActor.run {
+                self.isAnalyzing = false
+                self.analysisProgress = 1.0
+            }
+            AppLogger.debug("✅ Gemini plate analysis: \(json["dishName"] as? String ?? "?")")
+            return json
         } catch {
-            AppLogger.error("❌ Failed to serialize plate request: \(error)")
-            return nil
-        }
-
-        AppLogger.debug("🍽️ Plate streaming: sending SSE request...")
-        await MainActor.run { self.analysisProgress = 0.2 }
-
-        do {
-            let (bytes, response) = try await URLSession.shared.bytes(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw NSError(domain: "NetworkService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
-            }
-
-            // If server doesn't support SSE, fall back to standard JSON
-            let contentType = httpResponse.allHeaderFields["Content-Type"] as? String ?? ""
-            if httpResponse.statusCode != 200 || !contentType.contains("text/event-stream") {
-                AppLogger.debug("🍽️ SSE not available, falling back to standard analyzePlate")
-                guard let fallbackImage = UIImage(data: imageData) else { return nil }
-                let fallbackResult = await analyzePlate(image: fallbackImage, preferences: preferences, restaurantName: restaurantName, dishName: dishName, cuisineType: cuisineType)
-                // Publish complete detail so UI doesn't show loading spinner
-                if let r = fallbackResult, myGeneration == self.plateStreamGeneration {
-                    var detail = PlateAnalysis(from: r)
-                    detail.detailLoaded = true
-                    NetworkService.plateDetailSubject.send(detail)
-                }
-                return fallbackResult
-            }
-
-            await MainActor.run { self.analysisProgress = 0.4 }
-
-            // Use continuation to return Phase 1 fast while continuing to read Phase 2
-            let phase1: [String: Any]? = await withCheckedContinuation { continuation in
-                Task {
-                    var hasResumed = false
-                    var currentEvent = ""
-                    var dataLines: [String] = []
-                    var receivedComplete = false
-
-                    do {
-                        for try await line in bytes.lines {
-                            let trimmed = line.trimmingCharacters(in: .whitespaces)
-
-                            // Blank line = SSE event dispatch boundary
-                            if trimmed.isEmpty {
-                                let dataBuffer = dataLines.joined(separator: "\n")
-                                dataLines = []
-
-                                guard !dataBuffer.isEmpty, dataBuffer != "{}" else {
-                                    currentEvent = ""
-                                    continue
-                                }
-
-                                guard let jsonData = dataBuffer.data(using: .utf8),
-                                      let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
-                                    currentEvent = ""
-                                    continue
-                                }
-
-                                switch currentEvent {
-                                case "partial":
-                                    AppLogger.debug("✅ Plate SSE Phase 1 received: \(json["dishName"] as? String ?? "?")")
-                                    await MainActor.run { self.analysisProgress = 0.7 }
-                                    if !hasResumed {
-                                        hasResumed = true
-                                        continuation.resume(returning: json)
-                                    }
-
-                                case "complete":
-                                    receivedComplete = true
-                                    guard myGeneration == self.plateStreamGeneration else {
-                                        AppLogger.debug("🍽️ Ignoring stale Phase 2 (generation mismatch)")
-                                        break
-                                    }
-                                    var detailModel = PlateAnalysis(from: json)
-                                    detailModel.detailLoaded = true
-                                    NetworkService.plateDetailSubject.send(detailModel)
-                                    AppLogger.debug("✅ Plate SSE Phase 2 received (complete)")
-                                    await MainActor.run {
-                                        self.analysisProgress = 1.0
-                                        self.isAnalyzing = false
-                                    }
-                                    // If we never got a partial event, return complete as phase1
-                                    if !hasResumed {
-                                        hasResumed = true
-                                        continuation.resume(returning: json)
-                                    }
-
-                                case "error":
-                                    let errMsg = json["error"] as? String ?? "Unknown error"
-                                    AppLogger.error("❌ Plate SSE error event: \(errMsg)")
-                                    if !hasResumed {
-                                        hasResumed = true
-                                        continuation.resume(returning: nil)
-                                    }
-
-                                default:
-                                    break
-                                }
-
-                                currentEvent = ""
-                                continue
-                            }
-
-                            if trimmed.hasPrefix("event:") {
-                                currentEvent = String(trimmed.dropFirst(6)).trimmingCharacters(in: .whitespaces)
-                            } else if trimmed.hasPrefix("data:") {
-                                dataLines.append(String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespaces))
-                            }
-                        }
-                    } catch {
-                        AppLogger.error("❌ Plate SSE stream read error: \(error)")
-                    }
-
-                    // Stream ended — clean up if Phase 2 never arrived
-                    if !receivedComplete {
-                        await MainActor.run {
-                            self.isAnalyzing = false
-                            self.analysisProgress = 1.0
-                        }
-                        // Unblock Actions tab shimmer
-                        if myGeneration == self.plateStreamGeneration {
-                            var endMarker = PlateAnalysis(from: [:])
-                            endMarker.detailLoaded = true
-                            NetworkService.plateDetailSubject.send(endMarker)
-                        }
-                    }
-
-                    // Stream ended without resuming — return nil
-                    if !hasResumed {
-                        continuation.resume(returning: nil)
-                    }
-                }
-            }
-
-            if let result = phase1 {
-                await MainActor.run {
-                    // Don't set isAnalyzing=false yet — Phase 2 may still be streaming
-                    self.analysisProgress = 0.8
-                }
-                return result
-            }
-
-            // No data received
-            throw NSError(domain: "NetworkService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No plate analysis data received"])
-
-        } catch {
-            AppLogger.error("❌ Plate streaming error: \(error)")
+            AppLogger.error("❌ Gemini plate analysis: \(error.localizedDescription)")
             await MainActor.run {
                 self.isAnalyzing = false
                 self.analysisProgress = 0.0
-                self.errorMessage = "Failed to analyze plate: \(error.localizedDescription)"
+                self.errorMessage = error.localizedDescription
             }
             return nil
         }
@@ -2044,38 +1282,25 @@ class NetworkService: ObservableObject {
         co2Impact: Double,
         waterImpact: Double
     ) async {
-        guard let url = URL(string: "\(AppConfig.backendURL)/submit-purchase-decision") else {
-            AppLogger.debug("Invalid URL")
-            return
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        await addAuthToken(to: &request)
-        request.timeoutInterval = 15
+        guard let accessToken = AuthenticationService.shared.authToken, !accessToken.isEmpty else { return }
+        guard let userId = AuthenticationService.shared.currentUserId, !userId.isEmpty else { return }
 
-        let body: [String: Any] = [
-            "product_id": productId,
+        let payload: [String: Any] = [
+            "id": productId,
+            "user_id": userId,
             "product_name": productName,
             "decision": decision,
-            "co2_impact": co2Impact,
-            "water_impact": waterImpact,
-            "timestamp": ISO8601DateFormatter().string(from: Date())
+            "metadata": [
+                "co2_emissions": co2Impact,
+                "water_usage": waterImpact
+            ],
+            "created_at": ISO8601DateFormatter().string(from: Date())
         ]
 
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
-            let (_, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                AppLogger.warning("⚠️ Failed to submit purchase decision to backend")
-                return
-            }
-
-            AppLogger.debug("✅ Purchase decision submitted to backend: \(decision) for \(productName)")
+            try await SupabaseAPI.shared.upsertRow(accessToken: accessToken, table: "scan_history", payload: payload, onConflict: "id")
         } catch {
-            AppLogger.error("❌ Error submitting purchase decision: \(error)")
+            AppLogger.debug("⚠️ Supabase purchase decision sync failed: \(error.localizedDescription)")
         }
     }
 
@@ -2083,73 +1308,46 @@ class NetworkService: ObservableObject {
     // MARK: - GDPR Data Deletion
     
     func deleteUserData(userId: String) async throws {
-        guard let url = URL(string: "\(AppConfig.backendURL)/delete-user-data") else {
-            throw NSError(domain: "NetworkService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        await addAuthToken(to: &request)
-        request.timeoutInterval = 15
-        
-        let body: [String: Any] = [
-            "userId": userId,
-            "confirmDeletion": true
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw NSError(domain: "NetworkService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to delete data: \(errorText)"])
-        }
+        // No backend server. Deleting Supabase rows requires privileged service role; the iOS client uses anon key.
+        // Local deletion is handled in AuthenticationService.deleteAccount().
+        AppLogger.debug("🧹 deleteUserData: no-op (client has no admin rights). userId=\(userId)")
     }
 
     // MARK: - Log Alternative Interaction
     
     func logAlternativeInteraction(alternativeName: String, alternativeBrand: String?, originalProduct: String, action: String) async {
-        guard let url = URL(string: "\(AppConfig.backendURL)/log-alternative-interaction") else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 10
-
-        let body: [String: Any] = [
+        guard let accessToken = AuthenticationService.shared.authToken, !accessToken.isEmpty else { return }
+        let userId = AuthenticationService.shared.currentUserId
+        let payload: [String: Any] = [
+            "user_id": userId as Any,
             "alternative_name": alternativeName,
-            "alternative_brand": alternativeBrand ?? "",
+            "alternative_brand": alternativeBrand as Any,
             "original_product": originalProduct,
-            "action": action
+            "action": action,
+            "created_at": ISO8601DateFormatter().string(from: Date())
         ]
-
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
-            let (_, _) = try await URLSession.shared.data(for: request)
+            try await SupabaseAPI.shared.insertRow(accessToken: accessToken, table: "alternative_interactions", payload: payload)
         } catch {
-            AppLogger.debug("Failed to log alternative interaction: \(error)")
+            AppLogger.debug("Failed to log alternative interaction: \(error.localizedDescription)")
         }
     }
 
     // MARK: - Cloud Sync
 
-    /// Push user preferences to backend (Firestore)
+    /// Push user preferences to backend
     func syncPreferencesToBackend(_ prefs: UserPreferences) async {
         guard isConnected else { return }
-        guard let url = URL(string: "\(AppConfig.backendURL)/user/preferences") else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 15
-        await addAuthToken(to: &request)
+        guard let accessToken = AuthenticationService.shared.authToken, !accessToken.isEmpty else { return }
+        guard let userId = AuthenticationService.shared.currentUserId, !userId.isEmpty else { return }
 
-        let payload: [String: Any] = ["preferences": prefs.toJSON()]
+        let payload: [String: Any] = [
+            "user_id": userId,
+            "preferences": prefs.toJSON(),
+            "updated_at": ISO8601DateFormatter().string(from: Date())
+        ]
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            let (_, response) = try await URLSession.shared.data(for: request)
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
-                AppLogger.debug("✅ Preferences synced to backend")
-            }
+            try await SupabaseAPI.shared.upsertRow(accessToken: accessToken, table: "user_preferences", payload: payload, onConflict: "user_id")
         } catch {
             AppLogger.debug("⚠️ Preferences sync failed (will retry on next save): \(error.localizedDescription)")
         }
@@ -2157,18 +1355,20 @@ class NetworkService: ObservableObject {
 
     /// Pull user preferences from backend (for reinstall recovery)
     func pullPreferencesFromBackend() async -> UserPreferences? {
-        guard let url = URL(string: "\(AppConfig.backendURL)/user/preferences") else { return nil }
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 15
-        await addAuthToken(to: &request)
+        guard let userId = AuthenticationService.shared.currentUserId, !userId.isEmpty else { return nil }
+        let accessToken = AuthenticationService.shared.authToken
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
-
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let prefsDict = json["preferences"] as? [String: Any] else { return nil }
+            let rows = try await SupabaseAPI.shared.fetchRows(
+                accessToken: accessToken,
+                table: "user_preferences",
+                queryItems: [
+                    URLQueryItem(name: "select", value: "preferences"),
+                    URLQueryItem(name: "user_id", value: "eq.\(userId)"),
+                    URLQueryItem(name: "limit", value: "1")
+                ]
+            )
+            guard let prefsDict = rows.first?["preferences"] as? [String: Any] else { return nil }
 
             var prefs = UserPreferences()
             if let diets = prefsDict["selectedDiets"] as? [String] {
@@ -2199,61 +1399,127 @@ class NetworkService: ObservableObject {
                 prefs.ethicsPriority = ethics
             }
 
-            AppLogger.debug("✅ Pulled preferences from backend")
+            AppLogger.debug("✅ Pulled preferences from Supabase")
             return prefs
         } catch {
-            AppLogger.debug("⚠️ Failed to pull preferences from backend: \(error.localizedDescription)")
+            AppLogger.debug("⚠️ Failed to pull preferences from Supabase: \(error.localizedDescription)")
             return nil
         }
     }
 
     /// Pull scan history from backend (for reinstall recovery)
     func pullHistoryFromBackend(limit: Int = 100) async -> [[String: Any]]? {
-        guard let url = URL(string: "\(AppConfig.backendURL)/user/history?limit=\(limit)") else { return nil }
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 30
-        await addAuthToken(to: &request)
+        guard let userId = AuthenticationService.shared.currentUserId, !userId.isEmpty else { return nil }
+        let accessToken = AuthenticationService.shared.authToken
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+            let rows = try await SupabaseAPI.shared.fetchRows(
+                accessToken: accessToken,
+                table: "scan_history",
+                queryItems: [
+                    URLQueryItem(name: "select", value: "id,barcode,product_name,created_at,metadata"),
+                    URLQueryItem(name: "user_id", value: "eq.\(userId)"),
+                    URLQueryItem(name: "order", value: "created_at.desc"),
+                    URLQueryItem(name: "limit", value: "\(limit)")
+                ]
+            )
 
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let history = json["history"] as? [[String: Any]] else { return nil }
+            AppLogger.debug("✅ Pulled \(rows.count) history entries from Supabase")
+            return rows.map { row in
+                var out: [String: Any] = [:]
+                out["id"] = row["id"]
+                out["barcode"] = row["barcode"]
+                out["product_name"] = row["product_name"]
 
-            AppLogger.debug("✅ Pulled \(history.count) history entries from backend")
-            return history
+                if let createdAt = row["created_at"] as? String,
+                   let date = ISO8601DateFormatter().date(from: createdAt) {
+                    out["scanned_at"] = date.timeIntervalSince1970
+                }
+
+                let meta = row["metadata"] as? [String: Any] ?? [:]
+                out["health_score"] = meta["health_score"]
+                out["co2_emissions"] = meta["co2_emissions"]
+                out["water_usage"] = meta["water_usage"]
+                out["animal_impact"] = meta["animal_impact"]
+                out["violations"] = meta["violations"]
+                return out
+            }
         } catch {
-            AppLogger.debug("⚠️ Failed to pull history from backend: \(error.localizedDescription)")
+            AppLogger.debug("⚠️ Failed to pull history from Supabase: \(error.localizedDescription)")
             return nil
         }
     }
 
     /// Pull user stats from backend
     func pullStatsFromBackend() async -> (co2Saved: Double, waterSaved: Double, totalScans: Int)? {
-        guard let url = URL(string: "\(AppConfig.backendURL)/user/stats") else { return nil }
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 15
-        await addAuthToken(to: &request)
+        guard let userId = AuthenticationService.shared.currentUserId, !userId.isEmpty else { return nil }
+        let accessToken = AuthenticationService.shared.authToken
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+            let rows = try await SupabaseAPI.shared.fetchRows(
+                accessToken: accessToken,
+                table: "scan_history",
+                queryItems: [
+                    URLQueryItem(name: "select", value: "metadata,decision"),
+                    URLQueryItem(name: "user_id", value: "eq.\(userId)")
+                ]
+            )
 
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let stats = json["stats"] as? [String: Any] else { return nil }
+            var co2Saved: Double = 0
+            var waterSaved: Double = 0
+            var totalScans: Int = 0
 
-            let co2 = stats["total_co2_saved"] as? Double ?? 0
-            let water = stats["total_water_saved"] as? Double ?? 0
-            let scans = stats["total_scans"] as? Int ?? 0
+            for row in rows {
+                totalScans += 1
+                let decision = (row["decision"] as? String) ?? ""
+                if decision == "avoided" || decision == "alternative" {
+                    let meta = row["metadata"] as? [String: Any] ?? [:]
+                    co2Saved += (meta["co2_emissions"] as? Double) ?? 0
+                    waterSaved += (meta["water_usage"] as? Double) ?? 0
+                }
+            }
 
-            AppLogger.debug("✅ Pulled stats from backend: \(scans) scans, \(co2)kg CO₂ saved")
-            return (co2, water, scans)
+            AppLogger.debug("✅ Pulled stats from Supabase: \(totalScans) scans")
+            return (co2Saved, waterSaved, totalScans)
         } catch {
-            AppLogger.debug("⚠️ Failed to pull stats from backend: \(error.localizedDescription)")
+            AppLogger.debug("⚠️ Failed to pull stats from Supabase: \(error.localizedDescription)")
             return nil
+        }
+    }
+
+    /// Best-effort cloud backup of a full ScanHistory row.
+    func syncScanToSupabase(_ scan: ScanHistory) async {
+        guard let accessToken = AuthenticationService.shared.authToken, !accessToken.isEmpty else { return }
+        guard let userId = AuthenticationService.shared.currentUserId, !userId.isEmpty else { return }
+
+        let meta: [String: Any] = [
+            "is_safe": scan.isSafe,
+            "violations": scan.violations,
+            "health_score": scan.healthScore,
+            "co2_emissions": scan.co2Emissions,
+            "water_usage": scan.waterUsage,
+            "animal_impact": scan.animalImpact,
+            "purchase_decision": scan.purchaseDecision.rawValue,
+            "alternative_name": scan.alternativeName as Any,
+            "alternative_co2": scan.alternativeCO2 as Any,
+            "alternative_water": scan.alternativeWater as Any
+        ]
+
+        let payload: [String: Any] = [
+            "id": scan.id.uuidString,
+            "user_id": userId,
+            "barcode": scan.barcode as Any,
+            "product_name": scan.productName,
+            "decision": scan.purchaseDecision.rawValue,
+            "source": scan.sourceType,
+            "metadata": meta,
+            "created_at": ISO8601DateFormatter().string(from: scan.timestamp)
+        ]
+
+        do {
+            try await SupabaseAPI.shared.upsertRow(accessToken: accessToken, table: "scan_history", payload: payload, onConflict: "id")
+        } catch {
+            AppLogger.debug("⚠️ Supabase scan sync failed: \(error.localizedDescription)")
         }
     }
 
@@ -2313,4 +1579,3 @@ struct UserImpactData: Codable {
         let bought_alternative: Int
     }
 }
-

@@ -727,7 +727,7 @@ struct LiveBarcodeScannerView: View {
         loadingProgress = 0.2
         loadingStep = 1
         
-        // 🔊 Play scan sound + haptic feedback
+        //  Play scan sound + haptic feedback
         AudioServicesPlaySystemSound(1057) // Scanner beep
         HapticManager.shared.trigger(.success)
 
@@ -736,14 +736,14 @@ struct LiveBarcodeScannerView: View {
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             guard !Task.isCancelled else { return }
             guard isAnalyzing || isShowingLoadingOverlay else { return }
-            AppLogger.info("⏱️ Barcode lookup deadline — showing not-found flow")
+            AppLogger.info(" Barcode lookup deadline — showing not-found flow")
             activeBarcodeLookupTask?.cancel()
             presentProductNotFound(barcode: normalizedBarcode)
         }
 
         activeBarcodeLookupTask?.cancel()
         activeBarcodeLookupTask = Task { @MainActor in
-            AppLogger.debug("📡 Starting fast barcode lookup...")
+            AppLogger.debug(" Starting fast barcode lookup...")
 
             if Task.isCancelled { return }
 

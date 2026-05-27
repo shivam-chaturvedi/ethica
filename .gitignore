@@ -46,7 +46,9 @@ env/
 ENV/
 
 # Secrets / credentials (keep local only)
+.env
 GoogleService-Info.plist
+App/Ethica/Resources/Gemini.env
 gemini-key.json
 gemini-service-account.json
 service-account.json

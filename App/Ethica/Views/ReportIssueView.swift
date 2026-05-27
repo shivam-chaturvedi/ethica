@@ -245,36 +245,20 @@ struct ReportIssueView: View {
 
         Task {
             do {
-                guard let url = URL(string: "\(AppConfig.backendURL)/report-incorrect-analysis") else {
-                    throw NSError(domain: "Invalid URL", code: -1)
-                }
-
-                var request = URLRequest(url: url)
-                request.httpMethod = "POST"
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-                // Get auth token
-                await AuthenticationService.shared.fetchAuthToken()
-                if let token = AuthenticationService.shared.authToken {
-                    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                }
-
-                let payload: [String: Any] = [
-                    "barcode": analysisResult.sourceBarcode ?? "",
-                    "productName": analysisResult.productName,
-                    "issueType": issueTypeToBackend(selectedIssueType),
-                    "description": description,
-                    "expected": expectedValue,
-                    "actual": (analysisResult.isSafe ? "Safe" : "Not Safe") + " - " + analysisResult.detectedAllergens.joined(separator: ", ")
-                ]
-
-                request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-
-                let (data, response) = try await URLSession.shared.data(for: request)
-
-                guard let httpResponse = response as? HTTPURLResponse,
-                      httpResponse.statusCode == 200 else {
-                    throw NSError(domain: "Server error", code: -1)
+                // Save to Supabase instead
+                if let accessToken = AuthenticationService.shared.authToken, !accessToken.isEmpty {
+                    let userId = AuthenticationService.shared.currentUserId
+                    let supabasePayload: [String: Any] = [
+                        "user_id": userId as Any,
+                        "barcode": analysisResult.sourceBarcode as Any,
+                        "product_name": analysisResult.productName,
+                        "issue_type": issueTypeToBackend(selectedIssueType),
+                        "description": description,
+                        "expected": expectedValue.isEmpty ? nil as Any? : expectedValue,
+                        "actual": (analysisResult.isSafe ? "Safe" : "Not Safe") + " - " + analysisResult.detectedAllergens.joined(separator: ", "),
+                        "created_at": ISO8601DateFormatter().string(from: Date())
+                    ]
+                    try await SupabaseAPI.shared.insertRow(accessToken: accessToken, table: "issue_reports", payload: supabasePayload)
                 }
 
                 await MainActor.run {
@@ -285,7 +269,11 @@ struct ReportIssueView: View {
             } catch {
                 await MainActor.run {
                     isSubmitting = false
-                    errorMessage = "Failed to submit report: \(error.localizedDescription)"
+                    if let message = UserFacingError.message(from: error) {
+                        errorMessage = "Failed to submit report: \(message)"
+                    } else {
+                        errorMessage = nil
+                    }
                 }
             }
         }

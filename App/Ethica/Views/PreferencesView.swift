@@ -732,9 +732,6 @@ struct PreferencesView: View {
     
     private func handleLogout() {
         do {
-            // Reset onboarding so the next user goes through it
-            UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
-            UserDefaults.standard.set("", forKey: "onboardingCompletedByUser")
             try authService.signOut()
         } catch {
             AppLogger.debug("Error signing out: \(error.localizedDescription)")

@@ -408,6 +408,7 @@ final class JainDietValidator {
             nutriscoreGrade: result.nutriscoreGrade,
             ecoscoreGrade: result.ecoscoreGrade,
             novaGroup: result.novaGroup,
+            openFoodFactsDetails: result.openFoodFactsDetails,
             isRestaurantMenu: result.isRestaurantMenu,
             menuDishes: result.menuDishes,
             safetyConfidenceExplanation: result.safetyConfidenceExplanation,

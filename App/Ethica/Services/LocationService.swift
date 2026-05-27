@@ -48,9 +48,9 @@ class LocationService: NSObject, ObservableObject {
         locationManager.requestLocation()
     }
 
-    // MARK: - Nearby Stores (Real — via OpenStreetMap)
+    // MARK: - Nearby Stores (Real — via OpenStreetMap Overpass API)
 
-    /// Find real nearby stores via backend (OpenStreetMap Overpass API).
+    /// Find real nearby stores via OpenStreetMap Overpass API (no backend server).
     /// Results are cached for 30 minutes per location.
     func findNearbyStores(maxDistance: Double = 15.0) async -> [Store] {
         guard let location = currentLocation else {
@@ -67,43 +67,42 @@ class LocationService: NSObject, ObservableObject {
             return cached.stores.filter { $0.distance(from: location) <= maxDistance }
         }
 
-        // Call backend
+        // Call Overpass directly
         do {
-            guard let url = URL(string: "\(AppConfig.backendURL)/nearby-stores") else {
-                AppLogger.error("Invalid nearby-stores URL")
-                return []
-            }
+            guard let url = URL(string: "https://overpass-api.de/api/interpreter") else { return [] }
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.timeoutInterval = 15
+            request.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
+            request.timeoutInterval = 20
 
-            let payload: [String: Any] = [
-                "latitude": location.coordinate.latitude,
-                "longitude": location.coordinate.longitude,
-                "radius_miles": maxDistance
-            ]
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+            let radiusMeters = max(500.0, maxDistance * 1609.34)
+            let lat = location.coordinate.latitude
+            let lon = location.coordinate.longitude
+
+            let query = """
+            [out:json][timeout:15];
+            (
+              node["shop"~"supermarket|convenience|health_food|greengrocer"](around:\(Int(radiusMeters)),\(lat),\(lon));
+              way["shop"~"supermarket|convenience|health_food|greengrocer"](around:\(Int(radiusMeters)),\(lat),\(lon));
+              relation["shop"~"supermarket|convenience|health_food|greengrocer"](around:\(Int(radiusMeters)),\(lat),\(lon));
+            );
+            out center tags;
+            """
+
+            let body = "data=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+            request.httpBody = body.data(using: .utf8)
 
             let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                AppLogger.warning("⚠️ Store API returned non-200")
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                AppLogger.warning("⚠️ Overpass returned non-200")
                 return []
             }
 
-            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-            guard let storeArray = json?["stores"] as? [[String: Any]] else {
-                AppLogger.warning("⚠️ Invalid store response format")
-                return []
-            }
-
-            let stores = storeArray.compactMap { Store.fromJSON($0) }
+            let stores = parseOverpassStores(data: data)
 
             // Cache results
             storeCache[cacheKey] = (stores: stores, timestamp: Date())
-            AppLogger.debug("📍 Fetched \(stores.count) real stores from OpenStreetMap")
+            AppLogger.debug("📍 Fetched \(stores.count) stores from OpenStreetMap Overpass")
 
             return stores.filter { $0.distance(from: location) <= maxDistance }
                 .sorted { $0.distance(from: location) < $1.distance(from: location) }
@@ -112,6 +111,68 @@ class LocationService: NSObject, ObservableObject {
             AppLogger.error("❌ Store fetch error: \(error.localizedDescription)")
             return []
         }
+    }
+
+    private func parseOverpassStores(data: Data) -> [Store] {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let elements = root["elements"] as? [[String: Any]] else {
+            return []
+        }
+
+        return elements.compactMap { el in
+            let type = el["type"] as? String ?? "node"
+            guard let idNum = el["id"] as? NSNumber else { return nil }
+            let tags = el["tags"] as? [String: Any] ?? [:]
+            let name = (tags["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let storeName = name, !storeName.isEmpty else { return nil }
+
+            let lat: Double?
+            let lon: Double?
+            if let elLat = el["lat"] as? Double, let elLon = el["lon"] as? Double {
+                lat = elLat
+                lon = elLon
+            } else if let center = el["center"] as? [String: Any],
+                      let cLat = center["lat"] as? Double,
+                      let cLon = center["lon"] as? Double {
+                lat = cLat
+                lon = cLon
+            } else {
+                return nil
+            }
+
+            let chain = guessChain(from: storeName)
+            let addressParts = [
+                tags["addr:housenumber"] as? String,
+                tags["addr:street"] as? String
+            ].compactMap { $0 }.joined(separator: " ")
+
+            let address = addressParts.isEmpty ? (tags["addr:full"] as? String ?? storeName) : addressParts
+
+            return Store(
+                id: "\(type)_\(idNum.stringValue)",
+                name: storeName,
+                chain: chain,
+                address: address,
+                city: tags["addr:city"] as? String ?? "",
+                state: tags["addr:state"] as? String ?? "",
+                zipCode: tags["addr:postcode"] as? String ?? "",
+                latitude: lat ?? 0,
+                longitude: lon ?? 0,
+                phone: tags["phone"] as? String
+            )
+        }
+    }
+
+    private func guessChain(from name: String) -> StoreChain {
+        let lower = name.lowercased()
+        if lower.contains("whole foods") { return .wholeFoods }
+        if lower.contains("trader joe") { return .traderJoes }
+        if lower.contains("sprouts") { return .sprouts }
+        if lower.contains("walmart") { return .walmart }
+        if lower.contains("target") { return .target }
+        if lower.contains("costco") { return .costco }
+        if lower.contains("aldi") { return .aldi }
+        return .other
     }
 
     /// Synchronous version that returns cached stores only (for sort comparators etc.)

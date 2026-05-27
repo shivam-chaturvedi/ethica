@@ -50,7 +50,54 @@ struct AnalysisResult: Identifiable, Codable, Equatable {
             lhs.gmoStatus == rhs.gmoStatus &&
             lhs.nutriscoreGrade == rhs.nutriscoreGrade &&
             lhs.ecoscoreGrade == rhs.ecoscoreGrade &&
-            lhs.novaGroup == rhs.novaGroup
+            lhs.novaGroup == rhs.novaGroup &&
+            lhs.openFoodFactsDetails == rhs.openFoodFactsDetails
+    }
+
+    // MARK: - OpenFoodFacts Transparency (raw fields)
+    struct OpenFoodFactsDetails: Codable, Equatable {
+        struct NutriscoreData: Codable, Equatable {
+            struct Components: Codable, Equatable {
+                struct ComponentItem: Codable, Equatable {
+                    let id: String?
+                    let points: Int?
+                    let value: Double?
+                    let unit: String?
+                }
+                let negative: [ComponentItem]?
+                let positive: [ComponentItem]?
+            }
+
+            let negativePoints: Int?
+            let positivePoints: Int?
+            let components: Components?
+
+            enum CodingKeys: String, CodingKey {
+                case negativePoints = "negative_points"
+                case positivePoints = "positive_points"
+                case components
+            }
+        }
+
+        let allergens: String?
+        let allergensTags: [String]?
+        let allergensFromIngredients: String?
+        let traces: String?
+        let tracesTags: [String]?
+        let ingredientsText: String?
+        let ingredientsTextEn: String?
+        let nutriscoreData: NutriscoreData?
+
+        enum CodingKeys: String, CodingKey {
+            case allergens
+            case allergensTags = "allergens_tags"
+            case allergensFromIngredients = "allergens_from_ingredients"
+            case traces
+            case tracesTags = "traces_tags"
+            case ingredientsText = "ingredients_text"
+            case ingredientsTextEn = "ingredients_text_en"
+            case nutriscoreData = "nutriscore_data"
+        }
     }
     var id: UUID
     let productName: String
@@ -108,6 +155,9 @@ struct AnalysisResult: Identifiable, Codable, Equatable {
     let ecoscoreGrade: String?    // "a" through "e"
     let novaGroup: Int?           // 1-4 (food processing level)
 
+    // Optional OpenFoodFacts raw fields for transparency/debugging
+    let openFoodFactsDetails: OpenFoodFactsDetails?
+
     // Restaurant menu tracking
     let isRestaurantMenu: Bool?
     let menuDishes: [MenuDish]?
@@ -131,6 +181,7 @@ struct AnalysisResult: Identifiable, Codable, Equatable {
          sourceBarcode: String? = nil, sourceType: String? = nil, timestamp: Date? = nil,
          safetyLevel: String? = nil, gmoStatus: String? = nil,
          nutriscoreGrade: String? = nil, ecoscoreGrade: String? = nil, novaGroup: Int? = nil,
+         openFoodFactsDetails: OpenFoodFactsDetails? = nil,
          isRestaurantMenu: Bool? = nil, menuDishes: [MenuDish]? = nil,
          safetyConfidenceExplanation: SafetyConfidenceExplanation? = nil,
          ingredientEducation: [IngredientEducation]? = nil,
@@ -176,6 +227,7 @@ struct AnalysisResult: Identifiable, Codable, Equatable {
         self.nutriscoreGrade = nutriscoreGrade
         self.ecoscoreGrade = ecoscoreGrade
         self.novaGroup = novaGroup
+        self.openFoodFactsDetails = openFoodFactsDetails
         self.isRestaurantMenu = isRestaurantMenu
         self.menuDishes = menuDishes
         self.safetyConfidenceExplanation = safetyConfidenceExplanation
@@ -202,6 +254,7 @@ struct AnalysisResult: Identifiable, Codable, Equatable {
             sourceBarcode: sourceBarcode, sourceType: sourceType, timestamp: timestamp,
             safetyLevel: safetyLevel, gmoStatus: gmoStatus,
             nutriscoreGrade: nutriscoreGrade, ecoscoreGrade: ecoscoreGrade, novaGroup: novaGroup,
+            openFoodFactsDetails: openFoodFactsDetails,
             isRestaurantMenu: isRestaurantMenu, menuDishes: menuDishes,
             safetyConfidenceExplanation: safetyConfidenceExplanation,
             ingredientEducation: ingredientEducation,
@@ -257,6 +310,7 @@ struct AnalysisResult: Identifiable, Codable, Equatable {
             nutriscoreGrade: self.nutriscoreGrade,
             ecoscoreGrade: self.ecoscoreGrade,
             novaGroup: self.novaGroup,
+            openFoodFactsDetails: self.openFoodFactsDetails ?? enhanced.openFoodFactsDetails,
             isRestaurantMenu: self.isRestaurantMenu,
             menuDishes: self.menuDishes,
             safetyConfidenceExplanation: enhanced.safetyConfidenceExplanation,
@@ -551,22 +605,23 @@ struct AnalysisResult: Identifiable, Codable, Equatable {
         }
     }
 
-    enum CodingKeys: String, CodingKey {
-        case id
-        case productName, overallScore, isSafe, violations, warnings, cautionWarnings
-        case confidence, confidenceFactors, safetyConfidenceExplanation
-        case ingredients, detectedAllergens, detectionEvidence, healthScore
-        case environmentalScore, co2Emissions, waterUsage, animalImpact, landUse
-        case nutritionalHighlights, healthConcerns, healthBenefits, recommendations, alternatives
-        case environmentalBreakdown, brand, certifications, processingLevel
-        case estimatedCO2, packagingScore, animalWelfareScore
-        case additives, packageWeightGrams
-        case sourceBarcode, sourceType, timestamp
-        case safetyLevel, gmoStatus, nutriscoreGrade, ecoscoreGrade, novaGroup
-        case isRestaurantMenu, menuDishes
-        case ingredientEducation, crossContaminationRisks
-        case alternativesMetadata
-    }
+	    enum CodingKeys: String, CodingKey {
+	        case id
+	        case productName, overallScore, isSafe, violations, warnings, cautionWarnings
+	        case confidence, confidenceFactors, safetyConfidenceExplanation
+	        case ingredients, detectedAllergens, detectionEvidence, healthScore
+	        case environmentalScore, co2Emissions, waterUsage, animalImpact, landUse
+	        case nutritionalHighlights, healthConcerns, healthBenefits, recommendations, alternatives
+	        case environmentalBreakdown, brand, certifications, processingLevel
+	        case estimatedCO2, packagingScore, animalWelfareScore
+	        case additives, packageWeightGrams
+	        case sourceBarcode, sourceType, timestamp
+	        case safetyLevel, gmoStatus, nutriscoreGrade, ecoscoreGrade, novaGroup
+	        case openFoodFactsDetails
+	        case isRestaurantMenu, menuDishes
+	        case ingredientEducation, crossContaminationRisks
+	        case alternativesMetadata
+	    }
 
     init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -676,9 +731,10 @@ struct AnalysisResult: Identifiable, Codable, Equatable {
             novaGroup = nil
         }
 
-        // Restaurant menu fields
-        isRestaurantMenu = try container.decodeIfPresent(Bool.self, forKey: .isRestaurantMenu)
-        menuDishes = try container.decodeIfPresent([MenuDish].self, forKey: .menuDishes)
-        alternativesMetadata = try container.decodeIfPresent(AlternativesMetadata.self, forKey: .alternativesMetadata)
-    }
+	        // Restaurant menu fields
+	        isRestaurantMenu = try container.decodeIfPresent(Bool.self, forKey: .isRestaurantMenu)
+	        menuDishes = try container.decodeIfPresent([MenuDish].self, forKey: .menuDishes)
+	        openFoodFactsDetails = try container.decodeIfPresent(OpenFoodFactsDetails.self, forKey: .openFoodFactsDetails)
+	        alternativesMetadata = try container.decodeIfPresent(AlternativesMetadata.self, forKey: .alternativesMetadata)
+	    }
 }

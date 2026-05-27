@@ -508,7 +508,7 @@ struct MissingProductSubmissionView: View {
             } catch {
                 await MainActor.run {
                     isSubmitting = false
-                    alertMessage = error.localizedDescription
+                    alertMessage = UserFacingError.message(from: error)
                 }
             }
         }

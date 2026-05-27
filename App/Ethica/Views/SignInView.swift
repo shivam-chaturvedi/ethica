@@ -508,8 +508,10 @@ struct SignInView: View {
             } catch {
                 await MainActor.run {
                     withAnimation(AnimationSystem.springSmooth) {
-                        errorMessage = error.localizedDescription
-                        showError = true
+                        if let message = UserFacingError.message(from: error) {
+                            errorMessage = message
+                            showError = true
+                        }
                         isLoading = false
                     }
                 }
@@ -531,8 +533,10 @@ struct SignInView: View {
                         // Don\'t show error if user simply cancelled
                         let nsError = error as NSError
                         if nsError.code != -5 { // GIDSignInError.canceled
-                            errorMessage = error.localizedDescription
-                            showError = true
+                            if let message = UserFacingError.message(from: error) {
+                                errorMessage = message
+                                showError = true
+                            }
                         }
                         isLoading = false
                     }
@@ -557,8 +561,12 @@ struct SignInView: View {
                 }
             } catch {
                 await MainActor.run {
-                    errorMessage = "Unable to send reset email. Please check your email and try again."
-                    showError = true
+                    if UserFacingError.isSupabaseNotConfigured(error) {
+                        _ = UserFacingError.message(from: error)
+                    } else {
+                        errorMessage = "Unable to send reset email. Please check your email and try again."
+                        showError = true
+                    }
                 }
             }
         }
@@ -572,8 +580,10 @@ struct SignInView: View {
                 try await authService.signInAnonymously()
             } catch {
                 await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    showError = true
+                    if let message = UserFacingError.message(from: error) {
+                        errorMessage = message
+                        showError = true
+                    }
                     isLoading = false
                 }
             }

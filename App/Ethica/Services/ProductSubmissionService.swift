@@ -2,12 +2,11 @@
 //  ProductSubmissionService.swift
 //  Ethica
 //
-//  Missing product feedback/submission (Firestore)
+//  Missing product feedback/submission (Supabase)
 //
 
 import Foundation
 import UIKit
-import FirebaseFirestore
 
 enum ProductSubmissionError: LocalizedError {
     case notAuthenticated
@@ -38,7 +37,6 @@ struct ProductContribution {
 final class ProductSubmissionService {
     static let shared = ProductSubmissionService()
 
-    private let db = Firestore.firestore()
     private let maxPhotos = 4
     private let maxPhotoBytes = 280_000
 
@@ -65,7 +63,7 @@ final class ProductSubmissionService {
     }
 
     func submitProductContribution(_ contribution: ProductContribution) async throws {
-        let uid = try await ensureUserId()
+        let uid = try ensureUserId()
 
         let trimmedName = contribution.productName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
@@ -82,7 +80,7 @@ final class ProductSubmissionService {
             "barcode": contribution.barcode,
             "productName": trimmedName,
             "userId": uid,
-            "createdAt": FieldValue.serverTimestamp(),
+            "createdAt": ISO8601DateFormatter().string(from: Date()),
             "source": "ios_app",
             "status": "pending_review",
             "dietaryTags": contribution.dietaryTags
@@ -94,18 +92,17 @@ final class ProductSubmissionService {
         if let trimmedNotes, !trimmedNotes.isEmpty { payload["notes"] = trimmedNotes }
         if !photoPayloads.isEmpty { payload["photosBase64"] = photoPayloads }
 
-        _ = try await db.collection("product_submissions").addDocument(data: payload)
+        guard let token = AuthenticationService.shared.authToken, !token.isEmpty else {
+            throw ProductSubmissionError.notAuthenticated
+        }
+        try await SupabaseAPI.shared.insertProductSubmission(accessToken: token, payload: payload)
     }
 
-    private func ensureUserId() async throws -> String {
+    private func ensureUserId() throws -> String {
         if let uid = AuthenticationService.shared.currentUserId {
             return uid
         }
-        try await AuthenticationService.shared.signInAnonymously()
-        guard let uid = AuthenticationService.shared.currentUserId else {
-            throw ProductSubmissionError.notAuthenticated
-        }
-        return uid
+        throw ProductSubmissionError.notAuthenticated
     }
 
     private func encodePhotos<S: Sequence>(_ images: S) -> [String] where S.Element == UIImage {

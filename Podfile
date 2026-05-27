@@ -3,10 +3,6 @@ platform :ios, '17.0'
 target 'Ethica' do
   use_frameworks! :linkage => :static
 
-  pod 'FirebaseAuth'
-  pod 'GoogleSignIn', '~> 8.0'
-  pod 'FirebaseFirestore'
-  pod 'FirebaseCore'
   pod 'SQLite.swift', '~> 0.15.3'
   pod 'lottie-ios', '~> 4.4'
 end
