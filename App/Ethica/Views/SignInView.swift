@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AuthenticationServices
 
 struct SignInView: View {
     @ObservedObject private var authService = AuthenticationService.shared
@@ -35,6 +36,12 @@ struct SignInView: View {
 
             // Floating particles (decorative only)
             floatingParticles
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+
+            // Capture a stable presentation anchor for ASWebAuthenticationSession.
+            WindowCaptureView()
+                .frame(width: 0, height: 0)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
 
@@ -388,6 +395,36 @@ struct SignInView: View {
                 .accessibilityHint("Double tap to sign in with your Google account")
             }
 
+            if !isLoading {
+                Button(action: {
+                    handleAppleSignIn()
+                }) {
+                    HStack(spacing: Spacing.sm) {
+                        Image(systemName: "applelogo")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.white)
+
+                        Text("Continue with Apple")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: Spacing.radiusMD)
+                            .fill(.black.opacity(0.85))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Spacing.radiusMD)
+                                    .stroke(.white.opacity(0.18), lineWidth: 1)
+                            )
+                    )
+                }
+                .buttonStyle(ScaleButtonStyle())
+                .padding(.horizontal, Spacing.screenHorizontal)
+                .accessibilityLabel("Sign in with Apple")
+                .accessibilityHint("Double tap to sign in with your Apple account")
+            }
+
             // Guest button
             if !isLoading {
                 Button(action: {
@@ -545,6 +582,31 @@ struct SignInView: View {
         }
     }
 
+    private func handleAppleSignIn() {
+        withAnimation(AnimationSystem.springSmooth) {
+            isLoading = true
+        }
+
+        Task {
+            do {
+                try await authService.signInWithApple()
+            } catch {
+                await MainActor.run {
+                    withAnimation(AnimationSystem.springSmooth) {
+                        let nsError = error as NSError
+                        if nsError.code != ASWebAuthenticationSessionError.canceledLogin.rawValue {
+                            if let message = UserFacingError.message(from: error) {
+                                errorMessage = message
+                                showError = true
+                            }
+                        }
+                        isLoading = false
+                    }
+                }
+            }
+        }
+    }
+
     private func handlePasswordReset() {
         let trimmedEmail = forgotPasswordEmail.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedEmail.isEmpty else {
@@ -605,5 +667,23 @@ struct SignInView_Previews: PreviewProvider {
     static var previews: some View {
         SignInView()
             .preferredColorScheme(.dark)
+    }
+}
+
+private struct WindowCaptureView: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        DispatchQueue.main.async {
+            WebAuthSessionPresenter.shared.window = view.window
+        }
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        DispatchQueue.main.async {
+            if WebAuthSessionPresenter.shared.window !== uiView.window {
+                WebAuthSessionPresenter.shared.window = uiView.window
+            }
+        }
     }
 }

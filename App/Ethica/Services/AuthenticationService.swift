@@ -7,6 +7,9 @@
 
 import Foundation
 import Combine
+import AuthenticationServices
+import CryptoKit
+import UIKit
 
 @MainActor
 class AuthenticationService: ObservableObject {
@@ -22,15 +25,16 @@ class AuthenticationService: ObservableObject {
     private var session: SupabaseSession? {
         didSet {
             persistSession()
-            authToken = session?.accessToken
-            currentUser = session.flatMap(Self.userFromSession)
-            isAuthenticated = session?.accessToken?.isEmpty == false
+            syncAuthState()
         }
     }
+    private var guestUser: AuthUser?
+    private var currentWebAuthSession: ASWebAuthenticationSession?
 
     private init() {
         // Restore persisted session (if present)
         session = loadPersistedSession()
+        syncAuthState()
     }
 
     // MARK: - Sign In Methods
@@ -67,13 +71,21 @@ class AuthenticationService: ObservableObject {
     }
 
     func signInAnonymously() async throws {
-        throw NSError(domain: "AuthError", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "Anonymous sign-in is not enabled. Please sign in with email."])
+        session = nil
+        guestUser = AuthUser(
+            id: "guest-\(UUID().uuidString)",
+            email: nil,
+            displayName: "Guest"
+        )
+        syncAuthState()
     }
 
     func signInWithGoogle() async throws {
-        throw NSError(domain: "AuthError", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "Google sign-in is not configured yet for Supabase in this build."])
+        try await signInWithOAuth(provider: "google")
+    }
+
+    func signInWithApple() async throws {
+        try await signInWithOAuth(provider: "apple")
     }
 
     // MARK: - Sign Out
@@ -83,6 +95,9 @@ class AuthenticationService: ObservableObject {
             Task { try? await SupabaseAPI.shared.signOut(accessToken: token) }
         }
         session = nil
+        guestUser = nil
+        currentWebAuthSession = nil
+        syncAuthState()
 
         // Clear all user-specific caches to prevent data leaking between accounts
         Task {
@@ -128,6 +143,9 @@ class AuthenticationService: ObservableObject {
 
         // 4. Clear local session
         session = nil
+        guestUser = nil
+        currentWebAuthSession = nil
+        syncAuthState()
     }
 
     // MARK: - Password Reset
@@ -135,6 +153,135 @@ class AuthenticationService: ObservableObject {
     func resetPassword(email: String) async throws {
         guard SupabaseConfig.isConfigured else { throw SupabaseAPIError.notConfigured }
         try await SupabaseAPI.shared.resetPassword(email: email)
+    }
+
+    private func syncAuthState() {
+        authToken = session?.accessToken
+        currentUser = session.flatMap(Self.userFromSession) ?? guestUser
+        isAuthenticated = currentUser != nil
+    }
+
+    private func signInWithOAuth(provider: String) async throws {
+        guard SupabaseConfig.isConfigured else { throw SupabaseAPIError.notConfigured }
+
+        let flow = OAuthFlow(provider: provider)
+        let authURL = try flow.authorizationURL()
+        let callbackScheme = flow.redirectURL.scheme ?? ""
+        let codeVerifier = flow.codeVerifier
+
+        do {
+            let newSession: SupabaseSession = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<SupabaseSession, Error>) in
+                let authSession = ASWebAuthenticationSession(
+                    url: authURL,
+                    callbackURLScheme: callbackScheme
+                ) { callbackURL, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    guard let callbackURL else {
+                        continuation.resume(throwing: NSError(
+                            domain: "AuthError",
+                            code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "OAuth callback was missing."]
+                        ))
+                        return
+                    }
+                    Task {
+                        do {
+                            let session = try await SupabaseAPI.shared.exchangeOAuthCode(
+                                callbackURL: callbackURL,
+                                codeVerifier: codeVerifier
+                            )
+                            continuation.resume(returning: session)
+                        } catch {
+                            continuation.resume(throwing: error)
+                        }
+                    }
+                }
+
+                Task { @MainActor in
+                    self.currentWebAuthSession = authSession
+                    authSession.presentationContextProvider = WebAuthSessionPresenter.shared
+                    authSession.prefersEphemeralWebBrowserSession = false
+                    let started = authSession.start()
+                    if !started {
+                        self.currentWebAuthSession = nil
+                        continuation.resume(throwing: NSError(
+                            domain: "AuthError",
+                            code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Unable to start web authentication session."]
+                        ))
+                    }
+                }
+            }
+
+            self.session = newSession
+            self.guestUser = nil
+            syncAuthState()
+            self.currentWebAuthSession = nil
+        } catch {
+            self.currentWebAuthSession = nil
+            throw error
+        }
+    }
+}
+
+private struct OAuthFlow {
+    let provider: String
+    let codeVerifier: String
+    let codeChallenge: String
+    let redirectURL: URL
+
+    init(provider: String) {
+        self.provider = provider
+        self.codeVerifier = OAuthFlow.randomURLSafeString(length: 96)
+        self.codeChallenge = OAuthFlow.codeChallenge(for: codeVerifier)
+        let scheme = Bundle.main.urlTypesSchemes.first ?? "ethica"
+        self.redirectURL = URL(string: "\(scheme)://auth-callback")!
+    }
+
+    func authorizationURL() throws -> URL {
+        guard let baseURL = SupabaseConfig.url else { throw SupabaseAPIError.notConfigured }
+
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        components?.path = "/auth/v1/authorize"
+        components?.queryItems = [
+            URLQueryItem(name: "provider", value: provider),
+            URLQueryItem(name: "redirect_to", value: redirectURL.absoluteString),
+            URLQueryItem(name: "code_challenge", value: codeChallenge),
+            URLQueryItem(name: "code_challenge_method", value: "s256")
+        ]
+        guard let url = components?.url else { throw SupabaseAPIError.invalidURL }
+        return url
+    }
+
+    private static func codeChallenge(for verifier: String) -> String {
+        let digest = SHA256.hash(data: Data(verifier.utf8))
+        return Data(digest).base64URLEncodedString()
+    }
+
+    private static func randomURLSafeString(length: Int) -> String {
+        let bytes = (0..<length).map { _ in UInt8.random(in: 0...255) }
+        return Data(bytes).base64URLEncodedString()
+    }
+}
+
+private extension Bundle {
+    var urlTypesSchemes: [String] {
+        guard let urlTypes = object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] else { return [] }
+        return urlTypes.flatMap { dict in
+            (dict["CFBundleURLSchemes"] as? [String]) ?? []
+        }
+    }
+}
+
+private extension Data {
+    func base64URLEncodedString() -> String {
+        base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 }
 
@@ -318,6 +465,33 @@ final class SupabaseAPI {
     func signOut(accessToken: String) async throws {
         let url = try authURL(path: "logout")
         _ = try await requestData(url: url, method: "POST", authBearer: accessToken, body: Optional<[String: String]>.none)
+    }
+
+    func exchangeOAuthCode(callbackURL: URL, codeVerifier: String) async throws -> SupabaseSession {
+        guard let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name == "code" })?
+            .value, !code.isEmpty else {
+            throw SupabaseAPIError.decodingFailed(details: "OAuth callback did not contain an auth code.")
+        }
+
+        let url = try authURL(path: "token", queryItems: [URLQueryItem(name: "grant_type", value: "pkce")])
+        struct PKCEBody: Encodable {
+            let authCode: String
+            let codeVerifier: String
+
+            enum CodingKeys: String, CodingKey {
+                case authCode = "auth_code"
+                case codeVerifier = "code_verifier"
+            }
+        }
+
+        return try await requestJSON(
+            url: url,
+            method: "POST",
+            authBearer: nil,
+            body: PKCEBody(authCode: code, codeVerifier: codeVerifier)
+        )
     }
 
     func insertProductSubmission(accessToken: String, payload: [String: Any]) async throws {
