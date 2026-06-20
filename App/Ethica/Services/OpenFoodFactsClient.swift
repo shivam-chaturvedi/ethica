@@ -252,6 +252,18 @@ class OpenFoodFactsClient {
     /// - Parameter barcode: Product barcode (EAN-13, UPC-A, etc.)
     /// - Returns: OpenFoodFactsProduct if found, nil otherwise
     func fetchProduct(barcode: String) async -> (product: OpenFoodFactsProduct, rawJSON: [String: Any])? {
+        let candidates = BarcodeScanner.lookupBarcodeCandidates(barcode)
+        guard !candidates.isEmpty else { return nil }
+
+        for candidate in candidates {
+            if let result = await fetchProductDirect(barcode: candidate) {
+                return result
+            }
+        }
+        return nil
+    }
+
+    private func fetchProductDirect(barcode: String) async -> (product: OpenFoodFactsProduct, rawJSON: [String: Any])? {
         // Thread-safe cache access
         cacheLock.lock()
         let now = Date()

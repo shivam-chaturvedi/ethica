@@ -561,6 +561,28 @@ class HistoryService {
         }
     }
 
+    func updatePurchaseDecision(
+        for scanId: UUID,
+        decision: PurchaseDecision,
+        alternativeName: String? = nil,
+        alternativeCO2: Double? = nil,
+        alternativeWater: Double? = nil,
+        selectedAlternativeIndex: Int? = nil,
+        decisionTimestamp: Date? = Date()
+    ) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            dbQueue.async { [weak self] in
+                self?._updatePurchaseDecisionUnsafe(
+                    for: scanId, decision: decision,
+                    alternativeName: alternativeName, alternativeCO2: alternativeCO2,
+                    alternativeWater: alternativeWater, selectedAlternativeIndex: selectedAlternativeIndex,
+                    decisionTimestamp: decisionTimestamp
+                )
+                continuation.resume()
+            }
+        }
+    }
+
     private func _updatePurchaseDecisionUnsafe(
         for scanId: UUID,
         decision: PurchaseDecision,
@@ -651,6 +673,12 @@ class HistoryService {
                     }
                 }
                 sqlite3_finalize(verifyStatement)
+
+                if let scan = _fetchScanUnsafe(id: scanId) {
+                    Task {
+                        await NetworkService.shared.syncScanToSupabase(scan)
+                    }
+                }
             } else {
                 let errorMsg = dbErrorMessage()
                 AppLogger.error("❌ Failed to update purchase decision: \(errorMsg)")
@@ -661,6 +689,26 @@ class HistoryService {
         }
         
         sqlite3_finalize(statement)
+    }
+
+    func scan(withId id: UUID) -> ScanHistory? {
+        return dbQueue.sync { _fetchScanUnsafe(id: id) }
+    }
+
+    private func _fetchScanUnsafe(id: UUID) -> ScanHistory? {
+        let query = "SELECT * FROM scan_history WHERE id = ? LIMIT 1;"
+        var statement: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK else {
+            AppLogger.error("❌ Failed to prepare fetch-by-id query: \(dbErrorMessage())")
+            return nil
+        }
+
+        sqlite3_bind_text(statement, 1, (id.uuidString as NSString).utf8String, -1, SQLITE_TRANSIENT)
+        defer { sqlite3_finalize(statement) }
+
+        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+        return parseScan(from: statement)
     }
     
     // Legacy method for backward compatibility
@@ -759,6 +807,14 @@ class HistoryService {
 
             if sqlite3_step(statement) == SQLITE_DONE {
                 AppLogger.debug("✅ Logged alternative interaction: \(action) - \(alternativeBrand ?? "") \(alternativeName)")
+                Task {
+                    await NetworkService.shared.logAlternativeInteraction(
+                        alternativeName: alternativeName,
+                        alternativeBrand: alternativeBrand,
+                        originalProduct: originalProduct,
+                        action: action
+                    )
+                }
             } else {
                 let errorMsg = dbErrorMessage()
                 AppLogger.error("❌ Failed to log interaction: \(errorMsg)")

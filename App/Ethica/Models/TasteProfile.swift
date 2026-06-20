@@ -6,7 +6,10 @@
 //
 
 import Foundation
+
+#if canImport(SQLite)
 import SQLite
+#endif
 
 struct TasteProfile: Codable {
     // Taste dimensions (1-100 scale)
@@ -107,6 +110,7 @@ struct TasteDataPoint: Codable {
     let proteinContent: Double?
     let fiberContent: Double?
 
+#if canImport(SQLite)
     static let table = Table("taste_data_points")
     static let productNameCol = Expression<String>("product_name")
     static let timestampCol = Expression<Date>("timestamp")
@@ -168,6 +172,7 @@ struct TasteDataPoint: Codable {
         // Index for faster queries
         try db.run(table.createIndex(timestampCol, ifNotExists: true))
     }
+#endif
 }
 
 // MARK: - Default Profile

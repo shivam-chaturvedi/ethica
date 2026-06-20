@@ -393,19 +393,23 @@ final class GeminiService {
         \(ingredientsText)
 
         Analyze allergens, diets, GMO preference, and provide an Ethica-style result.
+        Pay special attention to label warnings such as "may contain", "made in a facility that processes",
+        "shared equipment", and "traces of" — these are cross-contamination risks, not guaranteed ingredients.
+        mayContainSafe=\(preferences.mayContainSafe) means cross-contamination warnings are \(preferences.mayContainSafe ? "informational only (cautionWarnings)" : "unsafe violations").
 
         Return ONLY valid JSON (no markdown) compatible with this structure:
         {
           "productName": "string",
           "overallScore": number 0-100,
           "isSafe": boolean,
-          "confidence": number 0.0-1.0,
+          "confidence": number 0-100,
           "confidenceFactors": ["string"],
           "violations": ["string"],
           "warnings": ["string"],
           "cautionWarnings": ["string"],
           "ingredients": ["string"],
           "detectedAllergens": ["string"],
+          "allergenMayContain": ["normalized allergen names from may-contain / facility warnings"],
           "healthScore": number 0-100,
           "environmentalScore": number 0-100,
           "co2Emissions": number,
@@ -415,7 +419,7 @@ final class GeminiService {
           "alternatives": [{"name":"string","brand":"string or null","reason":"string","estimatedCO2":number,"estimatedWater":number}],
           "sourceType": "gemini_on_device",
           "safetyLevel": "safe|caution|avoid",
-          "gmoStatus": "string or null"
+          "gmoStatus": "confirmed_gmo|non_gmo_certified|high_risk_unknown|no_risk|null"
         }
         """
         return try await generateTextJSON(prompt: prompt)

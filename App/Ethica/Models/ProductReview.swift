@@ -6,7 +6,10 @@
 //
 
 import Foundation
+
+#if canImport(SQLite)
 import SQLite
+#endif
 
 struct ProductReview: Identifiable, Codable {
     let id: String // UUID
@@ -85,6 +88,7 @@ struct ProductReviewSummary: Codable {
 
 // MARK: - SQLite Table Definition
 
+#if canImport(SQLite)
 extension ProductReview {
     static let table = Table("product_reviews")
     static let idCol = Expression<String>("id")
@@ -154,3 +158,11 @@ struct ReviewVote: Codable {
         })
     }
 }
+#else
+struct ReviewVote: Codable {
+    let reviewId: String
+    let userId: String
+    let isHelpful: Bool
+    let timestamp: Date
+}
+#endif

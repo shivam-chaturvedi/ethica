@@ -6,8 +6,12 @@
 //
 
 import Foundation
-import SQLite
 
+#if canImport(SQLite)
+import SQLite
+#endif
+
+#if canImport(SQLite)
 class TasteProfileService {
     static let shared = TasteProfileService()
     private let db: Connection?
@@ -368,3 +372,33 @@ class TasteProfileService {
         return rankedAlternatives.map { $0.alternative }
     }
 }
+#else
+final class TasteProfileService {
+    static let shared = TasteProfileService()
+
+    private init() {
+        AppLogger.warning("TasteProfileService: SQLite unavailable, taste profiling disabled")
+    }
+
+    func recordTasteData(from result: AnalysisResult, userKept: Bool? = nil) async {
+        _ = result
+        _ = userKept
+    }
+
+    func updateTasteProfile() async {}
+
+    func getTasteProfile() async -> TasteProfile {
+        TasteProfile.default
+    }
+
+    func calculateTasteCompatibility(for alternative: AnalysisResult.Alternative, userProfile: TasteProfile) -> Double {
+        _ = alternative
+        _ = userProfile
+        return 50.0
+    }
+
+    func adjustAlternativeRankings(alternatives: [AnalysisResult.Alternative]) async -> [AnalysisResult.Alternative] {
+        alternatives
+    }
+}
+#endif

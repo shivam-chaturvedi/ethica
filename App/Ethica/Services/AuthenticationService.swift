@@ -35,6 +35,7 @@ class AuthenticationService: ObservableObject {
         // Restore persisted session (if present)
         session = loadPersistedSession()
         syncAuthState()
+        Task { await refreshSessionIfNeeded() }
     }
 
     // MARK: - Sign In Methods
@@ -42,7 +43,7 @@ class AuthenticationService: ObservableObject {
     func signInWithEmail(email: String, password: String) async throws {
         guard SupabaseConfig.isConfigured else { throw SupabaseAPIError.notConfigured }
         let newSession = try await SupabaseAPI.shared.signIn(email: email, password: password)
-        self.session = newSession
+        await adoptAuthenticatedSession(newSession, provider: "email")
     }
 
     func signUpWithEmail(email: String, password: String) async throws {
@@ -51,14 +52,14 @@ class AuthenticationService: ObservableObject {
 
         // If Supabase returns a session, we're done.
         if newSession.accessToken?.isEmpty == false {
-            self.session = newSession
+            await adoptAuthenticatedSession(newSession, provider: "email")
             return
         }
 
         // If no session was returned (often when email confirmation is required), attempt a sign-in.
         do {
             let signedInSession = try await SupabaseAPI.shared.signIn(email: email, password: password)
-            self.session = signedInSession
+            await adoptAuthenticatedSession(signedInSession, provider: "email")
         } catch {
             // Preserve the underlying Supabase error in logs, but show a friendly message.
             AppLogger.warning("Signup succeeded but auto sign-in failed: \(error.localizedDescription)")
@@ -84,8 +85,69 @@ class AuthenticationService: ObservableObject {
         try await signInWithOAuth(provider: "google")
     }
 
+    /// Native Sign in with Apple → Supabase `signInWithIdToken` (provider: apple).
     func signInWithApple() async throws {
-        try await signInWithOAuth(provider: "apple")
+        let (authorization, rawNonce) = try await AppleSignInCoordinator.shared.signIn(
+            presentationAnchor: WebAuthSessionPresenter.shared.window
+        )
+        try await completeAppleSignIn(authorization: authorization, rawNonce: rawNonce)
+    }
+
+    /// Called from `SignInWithAppleButton` when the button supplies its own authorization request.
+    func completeAppleSignIn(authorization: ASAuthorization, rawNonce: String) async throws {
+        guard SupabaseConfig.isConfigured else { throw SupabaseAPIError.notConfigured }
+
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+            throw AppleSignInError.missingIdentityToken
+        }
+        guard let tokenData = credential.identityToken,
+              let idToken = String(data: tokenData, encoding: .utf8) else {
+            throw AppleSignInError.missingIdentityToken
+        }
+
+        let newSession = try await SupabaseAPI.shared.signInWithIdToken(
+            provider: "apple",
+            idToken: idToken,
+            nonce: rawNonce
+        )
+
+        var resolvedSession = newSession
+
+        // Apple only returns full name on the first authorization — save it to user metadata.
+        if let fullName = credential.fullName,
+           let given = fullName.givenName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !given.isEmpty,
+           let accessToken = newSession.accessToken, !accessToken.isEmpty {
+            let family = fullName.familyName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let displayName = [given, family].filter { !$0.isEmpty }.joined(separator: " ")
+            if let updatedUser = try? await SupabaseAPI.shared.updateUserMetadata(
+                accessToken: accessToken,
+                metadata: [
+                    "full_name": displayName,
+                    "given_name": given,
+                    "family_name": family
+                ]
+            ) {
+                resolvedSession = SupabaseSession(
+                    accessToken: newSession.accessToken,
+                    refreshToken: newSession.refreshToken,
+                    tokenType: newSession.tokenType,
+                    expiresIn: newSession.expiresIn,
+                    expiresAt: newSession.expiresAt,
+                    user: updatedUser
+                )
+            }
+        }
+
+        let appleDisplayName = Self.displayName(fromAppleCredential: credential)
+            ?? Self.userFromSession(resolvedSession)?.displayName
+
+        await adoptAuthenticatedSession(
+            resolvedSession,
+            provider: "apple",
+            displayName: appleDisplayName,
+            email: credential.email ?? resolvedSession.user?.email
+        )
     }
 
     // MARK: - Sign Out
@@ -111,8 +173,27 @@ class AuthenticationService: ObservableObject {
 
     /// Injects the current Supabase Bearer token into the given request.
     func addAuthToken(to request: inout URLRequest) async {
+        await refreshSessionIfNeeded()
         if let token = authToken, !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+    }
+
+    /// Refreshes the access token when expired or about to expire.
+    func refreshSessionIfNeeded() async {
+        guard let currentSession = session,
+              let refreshToken = currentSession.refreshToken,
+              !refreshToken.isEmpty else { return }
+
+        guard Self.isSessionExpired(currentSession) else { return }
+
+        do {
+            let refreshed = try await SupabaseAPI.shared.refreshSession(refreshToken: refreshToken)
+            self.session = refreshed
+        } catch {
+            AppLogger.warning("Session refresh failed, signing out: \(error.localizedDescription)")
+            self.session = nil
+            syncAuthState()
         }
     }
 
@@ -159,6 +240,91 @@ class AuthenticationService: ObservableObject {
         authToken = session?.accessToken
         currentUser = session.flatMap(Self.userFromSession) ?? guestUser
         isAuthenticated = currentUser != nil
+    }
+
+    /// Stores session locally and upserts `user_profiles` + bootstraps `user_preferences` in Supabase.
+    private func adoptAuthenticatedSession(
+        _ newSession: SupabaseSession,
+        provider: String,
+        displayName: String? = nil,
+        email: String? = nil
+    ) async {
+        self.session = newSession
+        self.guestUser = nil
+        syncAuthState()
+        await ensureUserRecordsInSupabase(
+            provider: provider,
+            displayName: displayName,
+            email: email
+        )
+    }
+
+    private func ensureUserRecordsInSupabase(
+        provider: String,
+        displayName: String? = nil,
+        email: String? = nil
+    ) async {
+        guard let session,
+              let accessToken = session.accessToken, !accessToken.isEmpty,
+              let userId = session.user?.id, !userId.isEmpty else {
+            return
+        }
+
+        let resolvedEmail = email ?? session.user?.email
+        let resolvedDisplayName = displayName ?? Self.userFromSession(session)?.displayName
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+
+        var profilePayload: [String: Any] = [
+            "user_id": userId,
+            "auth_provider": provider,
+            "updated_at": timestamp,
+            "last_sign_in_at": timestamp
+        ]
+        if let resolvedEmail, !resolvedEmail.isEmpty {
+            profilePayload["email"] = resolvedEmail
+        }
+        if let resolvedDisplayName, !resolvedDisplayName.isEmpty {
+            profilePayload["display_name"] = resolvedDisplayName
+        }
+
+        do {
+            try await SupabaseAPI.shared.upsertRow(
+                accessToken: accessToken,
+                table: "user_profiles",
+                payload: profilePayload,
+                onConflict: "user_id"
+            )
+            AppLogger.debug("✅ Synced user_profiles for \(userId) via \(provider)")
+        } catch {
+            AppLogger.warning("⚠️ user_profiles upsert failed: \(error.localizedDescription)")
+        }
+
+        do {
+            let existing = try await SupabaseAPI.shared.fetchRows(
+                accessToken: accessToken,
+                table: "user_preferences",
+                queryItems: [
+                    URLQueryItem(name: "select", value: "user_id"),
+                    URLQueryItem(name: "user_id", value: "eq.\(userId)"),
+                    URLQueryItem(name: "limit", value: "1")
+                ]
+            )
+            guard existing.isEmpty else { return }
+
+            try await SupabaseAPI.shared.upsertRow(
+                accessToken: accessToken,
+                table: "user_preferences",
+                payload: [
+                    "user_id": userId,
+                    "preferences": [:] as [String: Any],
+                    "updated_at": timestamp
+                ],
+                onConflict: "user_id"
+            )
+            AppLogger.debug("✅ Bootstrapped user_preferences for \(userId)")
+        } catch {
+            AppLogger.warning("⚠️ user_preferences bootstrap failed: \(error.localizedDescription)")
+        }
     }
 
     private func signInWithOAuth(provider: String) async throws {
@@ -216,9 +382,7 @@ class AuthenticationService: ObservableObject {
                 }
             }
 
-            self.session = newSession
-            self.guestUser = nil
-            syncAuthState()
+            await adoptAuthenticatedSession(newSession, provider: provider)
             self.currentWebAuthSession = nil
         } catch {
             self.currentWebAuthSession = nil
@@ -237,12 +401,12 @@ private struct OAuthFlow {
         self.provider = provider
         self.codeVerifier = OAuthFlow.randomURLSafeString(length: 96)
         self.codeChallenge = OAuthFlow.codeChallenge(for: codeVerifier)
-        let scheme = Bundle.main.urlTypesSchemes.first ?? "ethica"
-        self.redirectURL = URL(string: "\(scheme)://auth-callback")!
+        self.redirectURL = AuthConfig.oauthRedirectURL
     }
 
     func authorizationURL() throws -> URL {
         guard let baseURL = SupabaseConfig.url else { throw SupabaseAPIError.notConfigured }
+        guard let anonKey = SupabaseConfig.anonKey else { throw SupabaseAPIError.notConfigured }
 
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         components?.path = "/auth/v1/authorize"
@@ -250,7 +414,8 @@ private struct OAuthFlow {
             URLQueryItem(name: "provider", value: provider),
             URLQueryItem(name: "redirect_to", value: redirectURL.absoluteString),
             URLQueryItem(name: "code_challenge", value: codeChallenge),
-            URLQueryItem(name: "code_challenge_method", value: "s256")
+            URLQueryItem(name: "code_challenge_method", value: "s256"),
+            URLQueryItem(name: "apikey", value: anonKey)
         ]
         guard let url = components?.url else { throw SupabaseAPIError.invalidURL }
         return url
@@ -264,15 +429,6 @@ private struct OAuthFlow {
     private static func randomURLSafeString(length: Int) -> String {
         let bytes = (0..<length).map { _ in UInt8.random(in: 0...255) }
         return Data(bytes).base64URLEncodedString()
-    }
-}
-
-private extension Bundle {
-    var urlTypesSchemes: [String] {
-        guard let urlTypes = object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] else { return [] }
-        return urlTypes.flatMap { dict in
-            (dict["CFBundleURLSchemes"] as? [String]) ?? []
-        }
     }
 }
 
@@ -318,10 +474,25 @@ private extension AuthenticationService {
         let displayName: String?
         if let v = user.userMetadata?["full_name"], case let .string(name) = v {
             displayName = name
+        } else if let v = user.userMetadata?["name"], case let .string(name) = v {
+            displayName = name
         } else {
             displayName = nil
         }
         return AuthUser(id: user.id, email: user.email, displayName: displayName)
+    }
+
+    static func displayName(fromAppleCredential credential: ASAuthorizationAppleIDCredential) -> String? {
+        guard let fullName = credential.fullName else { return nil }
+        let given = fullName.givenName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let family = fullName.familyName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let combined = [given, family].filter { !$0.isEmpty }.joined(separator: " ")
+        return combined.isEmpty ? nil : combined
+    }
+
+    static func isSessionExpired(_ session: SupabaseSession) -> Bool {
+        guard let expiresAt = session.expiresAt else { return false }
+        return Date().timeIntervalSince1970 >= Double(expiresAt) - 60
     }
 }
 
@@ -465,6 +636,71 @@ final class SupabaseAPI {
     func signOut(accessToken: String) async throws {
         let url = try authURL(path: "logout")
         _ = try await requestData(url: url, method: "POST", authBearer: accessToken, body: Optional<[String: String]>.none)
+    }
+
+    func signInWithIdToken(provider: String, idToken: String, nonce: String? = nil) async throws -> SupabaseSession {
+        let url = try authURL(path: "token", queryItems: [URLQueryItem(name: "grant_type", value: "id_token")])
+        struct IdTokenBody: Encodable {
+            let provider: String
+            let idToken: String
+            let nonce: String?
+
+            enum CodingKeys: String, CodingKey {
+                case provider
+                case idToken = "id_token"
+                case nonce
+            }
+        }
+
+        return try await requestJSON(
+            url: url,
+            method: "POST",
+            authBearer: nil,
+            body: IdTokenBody(provider: provider, idToken: idToken, nonce: nonce)
+        )
+    }
+
+    func refreshSession(refreshToken: String) async throws -> SupabaseSession {
+        let url = try authURL(path: "token", queryItems: [URLQueryItem(name: "grant_type", value: "refresh_token")])
+        struct RefreshBody: Encodable {
+            let refreshToken: String
+
+            enum CodingKeys: String, CodingKey {
+                case refreshToken = "refresh_token"
+            }
+        }
+
+        return try await requestJSON(
+            url: url,
+            method: "POST",
+            authBearer: nil,
+            body: RefreshBody(refreshToken: refreshToken)
+        )
+    }
+
+    /// Updates `user_metadata` (e.g. Apple full name on first sign-in). Returns the updated user.
+    func updateUserMetadata(accessToken: String, metadata: [String: String]) async throws -> SupabaseUser {
+        let url = try authURL(path: "user")
+        struct UpdateBody: Encodable {
+            let data: [String: String]
+        }
+
+        struct UserResponse: Decodable {
+            let user: SupabaseUser?
+        }
+
+        let response: UserResponse = try await requestJSON(
+            url: url,
+            method: "PUT",
+            authBearer: accessToken,
+            body: UpdateBody(data: metadata)
+        )
+
+        guard let user = response.user else {
+            throw SupabaseAPIError.decodingFailed(details: "updateUser returned no user.")
+        }
+
+        return user
     }
 
     func exchangeOAuthCode(callbackURL: URL, codeVerifier: String) async throws -> SupabaseSession {

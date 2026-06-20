@@ -152,11 +152,13 @@ struct ResultsView: View {
             }
         }
         .onAppear {
-            // Initialize alternatives from result
             alternatives = currentResult.alternatives
             if !currentResult.violations.isEmpty {
                 HapticManager.shared.trigger(.warning)
             }
+        }
+        .task(id: alternativesSignature) {
+            await enrichAlternativesIfNeeded()
         }
         .task {
             // Lazy-load alternatives if they weren't included in the initial response
@@ -276,9 +278,9 @@ struct ResultsView: View {
             }
         }
         .task {
-            // Timeout: dismiss "Enhancing with AI" spinner after 30s to prevent perpetual spinner
+            // Timeout: dismiss "Enhancing with AI" spinner after 15s to prevent perpetual spinner
             guard isEnhancingWithAI else { return }
-            try? await Task.sleep(nanoseconds: 30_000_000_000)
+            try? await Task.sleep(nanoseconds: 15_000_000_000)
             if isEnhancingWithAI {
                 withAnimation { isEnhancingWithAI = false }
             }
@@ -288,6 +290,8 @@ struct ResultsView: View {
                 currentProduct: currentResult,
                 alternatives: alternatives
             )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
             .premiumSheet()
         }
     }
@@ -506,19 +510,27 @@ struct ResultsView: View {
     }
 
     private func impactIcon(_ impact: String) -> String {
-        switch impact.lowercased() {
-        case "low": return "leaf.fill"
-        case "medium": return "pawprint.fill"
-        case "high": return "flame.fill"
-        default: return "questionmark"
+        let lower = impact.lowercased()
+        if lower.contains("high") { return "flame.fill" }
+        if lower.contains("medium") || lower.contains("moderate") { return "pawprint.fill" }
+        if lower.contains("low") || lower.contains("plant") { return "leaf.fill" }
+        switch impact.uppercased() {
+        case "A", "B": return "leaf.fill"
+        case "C": return "pawprint.fill"
+        case "D", "E": return "flame.fill"
+        default: return "leaf.fill"
         }
     }
 
     private func impactColor(_ impact: String) -> Color {
-        switch impact.lowercased() {
-        case "low": return Theme.success
-        case "medium": return Theme.warning
-        case "high": return Theme.error
+        let lower = impact.lowercased()
+        if lower.contains("high") { return Theme.error }
+        if lower.contains("medium") || lower.contains("moderate") { return Theme.warning }
+        if lower.contains("low") || lower.contains("plant") { return Theme.success }
+        switch impact.uppercased() {
+        case "A", "B": return Theme.success
+        case "C": return Theme.warning
+        case "D", "E": return Theme.error
         default: return Theme.textSecondary
         }
     }
@@ -1009,11 +1021,9 @@ struct ResultsView: View {
         // dimensions the alternative actually has (nil = unknown, not "zero")
         guard !hasIssues else { return withoutSelf }
         return withoutSelf.filter { alt in
-            let hasAnyScore = alt.healthScore != nil || alt.environmentalScore != nil || alt.ethicsScore != nil
-            guard hasAnyScore else { return true }
-            let healthBetter = alt.healthScore.map { $0 > currentResult.healthScore } ?? true
-            let envBetter = alt.environmentalScore.map { $0 > currentResult.environmentalScore } ?? true
-            let ethicsBetter = alt.ethicsScore.map { $0 > currentResult.animalWelfareScore } ?? true
+            let healthBetter = alt.displayHealthScore > currentResult.healthScore
+            let envBetter = alt.displayEnvironmentalScore > currentResult.environmentalScore
+            let ethicsBetter = alt.displayEthicsScore > currentResult.animalWelfareScore
             return healthBetter || envBetter || ethicsBetter
         }
     }
@@ -1098,35 +1108,49 @@ struct ResultsView: View {
         .buttonStyle(.plain)
     }
 
+    private var alternativesSignature: String {
+        alternatives.map { "\($0.name)|\($0.barcode ?? "")|\($0.isEnriched)" }.joined(separator: ";")
+    }
+
+    private func enrichAlternativesIfNeeded() async {
+        guard !alternatives.isEmpty else { return }
+        let needsEnrichment = alternatives.contains { $0.healthScore == nil && $0.barcode == nil }
+        guard needsEnrichment else { return }
+
+        let enriched = await NetworkService.shared.enrichAlternatives(alternatives)
+        await MainActor.run {
+            guard !enriched.isEmpty else { return }
+            withAnimation(.easeInOut(duration: 0.3)) {
+                alternatives = enriched
+            }
+        }
+    }
+
+    private func openAlternativeInBrowser(_ alternative: AnalysisResult.Alternative) {
+        HistoryService.shared.logAlternativeInteraction(
+            alternativeName: alternative.name,
+            alternativeBrand: alternative.brand,
+            originalProduct: currentResult.productName,
+            action: "viewed"
+        )
+
+        guard let url = alternative.productURL else {
+            AppLogger.warning("⚠️ No URL for alternative: \(alternative.name)")
+            return
+        }
+
+        UIApplication.shared.open(url, options: [:]) { opened in
+            if !opened {
+                AppLogger.error("❌ Failed to open alternative URL: \(url.absoluteString)")
+            }
+        }
+        HapticManager.shared.trigger(.impactMedium)
+    }
+
     // Premium alternative card design
     @ViewBuilder
     private func premiumAlternativeCard(_ alternative: AnalysisResult.Alternative, index: Int) -> some View {
-        Button(action: {
-            // Log interaction with backend
-            Task {
-                await NetworkService.shared.logAlternativeInteraction(
-                    alternativeName: alternative.name,
-                    alternativeBrand: alternative.brand,
-                    originalProduct: currentResult.productName,
-                    action: "clicked"
-                )
-            }
-
-            // Also log locally
-            HistoryService.shared.logAlternativeInteraction(
-                alternativeName: alternative.name,
-                alternativeBrand: alternative.brand,
-                originalProduct: currentResult.productName,
-                action: "clicked"
-            )
-
-            // Open product link
-            if let link = alternative.link, let url = URL(string: link) {
-                UIApplication.shared.open(url)
-            }
-            HapticManager.shared.trigger(.impactMedium)
-        }) {
-            VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
                 // Rank badge inline
                 rankBadge(for: index)
 
@@ -1169,7 +1193,10 @@ struct ResultsView: View {
                 // Health, Environmental, Ethics Scores
                 scoresRow(for: alternative)
 
-                // View product CTA
+            // View product CTA — dedicated button (not whole-card) so taps work inside horizontal scroll
+            Button(action: {
+                openAlternativeInBrowser(alternative)
+            }) {
                 HStack {
                     Text("View Details")
                         .font(.system(size: 14, weight: .semibold))
@@ -1184,33 +1211,33 @@ struct ResultsView: View {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(Theme.primary)
                 )
-                .buttonPressAnimation()
             }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Theme.surfaceSecondary)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(
-                        LinearGradient(
-                            colors: gradientForRank(index),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ).opacity(0.4),
-                        lineWidth: 1.5
-                    )
-            )
-            // Top accent capsule
-            .overlay(alignment: .top) {
-                Capsule()
-                    .fill(rankInfo(for: index).2)
-                    .frame(width: 80, height: 3)
-                    .offset(y: -1.5)
-            }
+            .buttonStyle(.plain)
+            .buttonPressAnimation()
         }
-        .buttonStyle(ScaleButtonStyle())
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Theme.surfaceSecondary)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(
+                    LinearGradient(
+                        colors: gradientForRank(index),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ).opacity(0.4),
+                    lineWidth: 1.5
+                )
+        )
+        // Top accent capsule
+        .overlay(alignment: .top) {
+            Capsule()
+                .fill(rankInfo(for: index).2)
+                .frame(width: 80, height: 3)
+                .offset(y: -1.5)
+        }
     }
 
     private func rankBadge(for index: Int) -> some View {
@@ -1277,62 +1304,44 @@ struct ResultsView: View {
     private func scoresRow(for alternative: AnalysisResult.Alternative) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                // Health Score
-                if let health = alternative.healthScore {
-                    scoreCardWithDelta(
-                        title: "Health",
-                        score: health,
-                        currentScore: currentResult.healthScore,
-                        icon: "heart.fill",
-                        color: scoreColor(health)
-                    )
-                } else {
-                    scorePlaceholder(title: "Health", icon: "heart.fill")
-                }
+                scoreCardWithDelta(
+                    title: "Health",
+                    score: alternative.displayHealthScore,
+                    currentScore: currentResult.healthScore,
+                    icon: "heart.fill",
+                    color: scoreColor(alternative.displayHealthScore)
+                )
 
-                // Environmental Score
-                if let enviro = alternative.environmentalScore {
-                    scoreCardWithDelta(
-                        title: "Environment",
-                        score: enviro,
-                        currentScore: currentResult.environmentalScore,
-                        icon: "leaf.fill",
-                        color: scoreColor(enviro)
-                    )
-                } else {
-                    scorePlaceholder(title: "Environment", icon: "leaf.fill")
-                }
+                scoreCardWithDelta(
+                    title: "Environment",
+                    score: alternative.displayEnvironmentalScore,
+                    currentScore: currentResult.environmentalScore,
+                    icon: "leaf.fill",
+                    color: scoreColor(alternative.displayEnvironmentalScore)
+                )
 
-                // Ethics Score
-                if let ethics = alternative.ethicsScore {
-                    scoreCardWithDelta(
-                        title: "Ethics",
-                        score: ethics,
-                        currentScore: nil, // Current product doesn't have ethics score yet
-                        icon: "star.fill",
-                        color: scoreColor(ethics)
-                    )
-                } else {
-                    scorePlaceholder(title: "Ethics", icon: "star.fill")
-                }
-            }
-
-            // Data source indicator
-            if let source = alternative.dataSource {
-                HStack(spacing: 4) {
-                    Image(systemName: alternative.isEnriched ? "checkmark.circle.fill" : "sparkles")
-                        .font(.system(size: 9))
-                    Text(alternative.isEnriched ? "Verified Data" : "AI Estimate")
-                        .font(.system(size: 9, weight: .medium))
-                }
-                .foregroundColor(alternative.isEnriched ? Theme.success : Theme.textSecondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    Capsule()
-                        .fill((alternative.isEnriched ? Theme.success : Theme.textSecondary).opacity(0.1))
+                scoreCardWithDelta(
+                    title: "Ethics",
+                    score: alternative.displayEthicsScore,
+                    currentScore: nil,
+                    icon: "star.fill",
+                    color: scoreColor(alternative.displayEthicsScore)
                 )
             }
+
+            HStack(spacing: 4) {
+                Image(systemName: alternative.isEnriched ? "checkmark.circle.fill" : "sparkles")
+                    .font(.system(size: 9))
+                Text(alternative.isEnriched ? "Verified Data" : "AI Estimate")
+                    .font(.system(size: 9, weight: .medium))
+            }
+            .foregroundColor(alternative.isEnriched ? Theme.success : Theme.textSecondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill((alternative.isEnriched ? Theme.success : Theme.textSecondary).opacity(0.1))
+            )
         }
     }
 
@@ -1868,27 +1877,14 @@ struct ResultsView: View {
     }
 
     private func savePurchaseDecision(_ decision: PurchaseDecision) {
-        // Use originalHistoryId — stable across preliminary→enhanced transitions.
-        HistoryService.shared.updatePurchaseDecision(
-            for: originalHistoryId,
-            decision: decision
-        )
-
-        // Record taste preferences based on decision
         Task {
+            await HistoryService.shared.updatePurchaseDecision(
+                for: originalHistoryId,
+                decision: decision
+            )
+
             let userKept = (decision == .purchased)
             await TasteProfileService.shared.recordTasteData(from: currentResult, userKept: userKept)
-        }
-
-        // Submit purchase decision to backend for impact tracking
-        Task {
-            await NetworkService.shared.submitPurchaseDecision(
-                productId: originalHistoryId.uuidString,
-                productName: currentResult.productName,
-                decision: decision.rawValue,
-                co2Impact: currentResult.co2Emissions,
-                waterImpact: currentResult.waterUsage
-            )
         }
     }
 }
@@ -2196,9 +2192,9 @@ struct FullDetailsSheet: View {
         switch status.lowercased() {
         case "confirmed_gmo": return "exclamationmark.triangle.fill"
         case "non_gmo_certified": return "checkmark.seal.fill"
-        case "high_risk_unknown": return "questionmark.circle.fill"
+        case "high_risk_unknown": return "exclamationmark.triangle.fill"
         case "no_risk": return "checkmark.circle.fill"
-        default: return "questionmark.circle"
+        default: return "info.circle.fill"
         }
     }
 
@@ -3084,8 +3080,8 @@ struct FullDetailsSheet: View {
         switch isSafe {
         case true: return "checkmark.circle.fill"
         case false: return "xmark.circle.fill"
-        case nil: return "questionmark.circle.fill"
-        default: return "questionmark.circle.fill"
+        case nil: return "info.circle.fill"
+        default: return "info.circle.fill"
         }
     }
 

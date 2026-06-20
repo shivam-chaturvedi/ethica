@@ -6,8 +6,12 @@
 //
 
 import Foundation
-import SQLite
 
+#if canImport(SQLite)
+import SQLite
+#endif
+
+#if canImport(SQLite)
 class ImpactService {
     static let shared = ImpactService()
     private let db: Connection?
@@ -394,4 +398,34 @@ class ImpactService {
         return formatter.string(from: date)
     }
 }
+#else
+final class ImpactService {
+    static let shared = ImpactService()
 
+    private init() {
+        AppLogger.warning("ImpactService: SQLite unavailable, impact tracking disabled")
+    }
+
+    func getUserImpact() async throws -> UserImpact {
+        UserImpact(
+            totalCO2Saved: 0,
+            totalWaterSaved: 0,
+            totalProductsScanned: 0,
+            alternativesChosen: 0,
+            healthierChoices: 0,
+            streakDays: 0,
+            currentMonthCO2: 0,
+            currentMonthWater: 0,
+            milestones: UserImpact.Milestone.predefinedMilestones.map { milestone in
+                var copy = milestone
+                copy.currentValue = 0
+                copy.isAchieved = false
+                copy.achievedDate = nil
+                return copy
+            },
+            weeklyTrend: [],
+            monthlyTrend: []
+        )
+    }
+}
+#endif

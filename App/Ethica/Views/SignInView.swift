@@ -20,6 +20,7 @@ struct SignInView: View {
     @State private var forgotPasswordEmail = ""
     @State private var showResetSent = false
     @State private var resetSentMessage = ""
+    @State private var currentAppleNonce: String?
 
     // Animation states
     @State private var logoScale: CGFloat = 0.5
@@ -396,33 +397,19 @@ struct SignInView: View {
             }
 
             if !isLoading {
-                Button(action: {
-                    handleAppleSignIn()
-                }) {
-                    HStack(spacing: Spacing.sm) {
-                        Image(systemName: "applelogo")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(.white)
-
-                        Text("Continue with Apple")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: Spacing.radiusMD)
-                            .fill(.black.opacity(0.85))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: Spacing.radiusMD)
-                                    .stroke(.white.opacity(0.18), lineWidth: 1)
-                            )
-                    )
+                SignInWithAppleButton(.signIn) { request in
+                    let nonce = AppleSignInCoordinator.randomNonceString()
+                    currentAppleNonce = nonce
+                    request.requestedScopes = [.fullName, .email]
+                    request.nonce = AppleSignInCoordinator.sha256(nonce)
+                } onCompletion: { result in
+                    handleAppleSignInCompletion(result)
                 }
-                .buttonStyle(ScaleButtonStyle())
+                .signInWithAppleButtonStyle(.white)
+                .frame(height: 50)
+                .cornerRadius(Spacing.radiusMD)
                 .padding(.horizontal, Spacing.screenHorizontal)
                 .accessibilityLabel("Sign in with Apple")
-                .accessibilityHint("Double tap to sign in with your Apple account")
             }
 
             // Guest button
@@ -564,12 +551,11 @@ struct SignInView: View {
         Task {
             do {
                 try await authService.signInWithGoogle()
+                await MainActor.run { isLoading = false }
             } catch {
                 await MainActor.run {
                     withAnimation(AnimationSystem.springSmooth) {
-                        // Don\'t show error if user simply cancelled
-                        let nsError = error as NSError
-                        if nsError.code != -5 { // GIDSignInError.canceled
+                        if !isUserCancelledAuthError(error) {
                             if let message = UserFacingError.message(from: error) {
                                 errorMessage = message
                                 showError = true
@@ -582,19 +568,31 @@ struct SignInView: View {
         }
     }
 
-    private func handleAppleSignIn() {
+    private func handleAppleSignInCompletion(_ result: Result<ASAuthorization, Error>) {
         withAnimation(AnimationSystem.springSmooth) {
             isLoading = true
         }
 
         Task {
             do {
-                try await authService.signInWithApple()
+                switch result {
+                case .success(let authorization):
+                    guard let nonce = currentAppleNonce else {
+                        throw AppleSignInError.missingIdentityToken
+                    }
+                    try await authService.completeAppleSignIn(authorization: authorization, rawNonce: nonce)
+                case .failure(let error):
+                    throw error
+                }
+                await MainActor.run {
+                    currentAppleNonce = nil
+                    isLoading = false
+                }
             } catch {
                 await MainActor.run {
                     withAnimation(AnimationSystem.springSmooth) {
-                        let nsError = error as NSError
-                        if nsError.code != ASWebAuthenticationSessionError.canceledLogin.rawValue {
+                        currentAppleNonce = nil
+                        if !isUserCancelledAuthError(error) {
                             if let message = UserFacingError.message(from: error) {
                                 errorMessage = message
                                 showError = true
@@ -605,6 +603,19 @@ struct SignInView: View {
                 }
             }
         }
+    }
+
+    private func isUserCancelledAuthError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == ASWebAuthenticationSessionError.errorDomain,
+           nsError.code == ASWebAuthenticationSessionError.canceledLogin.rawValue {
+            return true
+        }
+        if nsError.domain == ASAuthorizationError.errorDomain,
+           nsError.code == ASAuthorizationError.canceled.rawValue {
+            return true
+        }
+        return false
     }
 
     private func handlePasswordReset() {

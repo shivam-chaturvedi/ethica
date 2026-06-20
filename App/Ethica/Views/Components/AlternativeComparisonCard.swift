@@ -170,31 +170,28 @@ struct AlternativeComparisonCard: View {
 					.lineLimit(3)
 			}
 
-			// Buy button
-			if let link = alternative.link, let url = URL(string: link) {
-				Button(action: {
-					// Log interaction
-					HistoryService.shared.logAlternativeInteraction(
-						alternativeName: alternative.name,
-						alternativeBrand: alternative.brand,
-						originalProduct: currentProduct.productName,
-						action: "clicked"
-					)
-
-					// Open link
+			// View product
+			Button(action: {
+				HistoryService.shared.logAlternativeInteraction(
+					alternativeName: alternative.name,
+					alternativeBrand: alternative.brand,
+					originalProduct: currentProduct.productName,
+					action: "viewed"
+				)
+				if let url = alternative.productURL {
 					UIApplication.shared.open(url)
-				}) {
-					HStack {
-						Text("View Product")
-						Image(systemName: "arrow.right")
-					}
-					.font(.subheadline.bold())
-					.foregroundColor(.white)
-					.frame(maxWidth: .infinity)
-					.padding(.vertical, 12)
-					.background(Theme.success)
-					.cornerRadius(8)
 				}
+			}) {
+				HStack {
+					Text("View Product")
+					Image(systemName: "arrow.right")
+				}
+				.font(.subheadline.bold())
+				.foregroundColor(.white)
+				.frame(maxWidth: .infinity)
+				.padding(.vertical, 12)
+				.background(Theme.success)
+				.cornerRadius(8)
 			}
 		}
 		.padding()

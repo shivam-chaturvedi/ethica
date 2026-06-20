@@ -7,8 +7,12 @@
 //
 
 import Foundation
-import SQLite
 
+#if canImport(SQLite)
+import SQLite
+#endif
+
+#if canImport(SQLite)
 class DatabaseManager {
     static let shared = DatabaseManager()
 
@@ -149,3 +153,59 @@ struct AlternativeInteraction: Identifiable, Codable {
         try db.run(table.createIndex(actionCol, ifNotExists: true))
     }
 }
+#else
+final class DatabaseManager {
+    static let shared = DatabaseManager()
+
+    let db: Any? = nil
+    var historyDb: Any? { nil }
+    var isAvailable: Bool { false }
+
+    private init() {
+        AppLogger.warning("DatabaseManager: SQLite unavailable, database-backed services disabled")
+    }
+}
+
+struct HistoryItem {
+    let id: String
+    let productName: String
+    let barcode: String?
+    let timestamp: Date
+    let healthScore: Double
+    let co2Emissions: Double
+    let waterUsage: Double
+    let purchaseDecision: String?
+    let alternativeName: String?
+    let alternativeCO2: Double?
+    let alternativeWater: Double?
+
+    var co2Saved: Double? {
+        if purchaseDecision == "alternative", let altCO2 = alternativeCO2 {
+            let savings = co2Emissions - altCO2
+            return savings > 0 ? savings : nil
+        } else if purchaseDecision == "avoided" {
+            return co2Emissions > 0 ? co2Emissions : nil
+        }
+        return nil
+    }
+
+    var waterSaved: Double? {
+        if purchaseDecision == "alternative", let altWater = alternativeWater {
+            let savings = waterUsage - altWater
+            return savings > 0 ? savings : nil
+        } else if purchaseDecision == "avoided" {
+            return waterUsage > 0 ? waterUsage : nil
+        }
+        return nil
+    }
+}
+
+struct AlternativeInteraction: Identifiable, Codable {
+    let id: UUID
+    let alternativeName: String
+    let alternativeBrand: String?
+    let originalProduct: String
+    let action: String
+    let timestamp: Date
+}
+#endif

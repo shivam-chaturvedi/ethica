@@ -263,29 +263,54 @@ struct AnalysisResult: Identifiable, Codable, Equatable {
         )
     }
 
-    /// Merge enrichment from enhanced result while preserving safety fields from preliminary (self).
+    /// Merge enrichment from enhanced result. Prefer AI-verified safety when enrichment is newer/better.
     func mergingEnrichment(from enhanced: AnalysisResult) -> AnalysisResult {
-        AnalysisResult(
+        let enhancedSource = enhanced.sourceType ?? ""
+        let enhancedIsAI = enhancedSource.contains("gemini") || enhancedSource == "backend"
+        let useEnhancedSafety = enhancedIsAI && enhanced.confidence >= self.confidence
+
+        let mergedIsSafe = useEnhancedSafety ? enhanced.isSafe : self.isSafe
+        let mergedConfidence = useEnhancedSafety ? max(enhanced.confidence, self.confidence) : self.confidence
+        let mergedFactors = useEnhancedSafety && !enhanced.confidenceFactors.isEmpty
+            ? enhanced.confidenceFactors
+            : self.confidenceFactors
+        let mergedViolations = useEnhancedSafety ? enhanced.violations : self.violations
+        let mergedWarnings = useEnhancedSafety
+            ? enhanced.warnings.filter { !$0.localizedCaseInsensitiveContains("verify with full scan") }
+            : self.warnings
+        let mergedCautions = useEnhancedSafety ? enhanced.cautionWarnings : self.cautionWarnings
+        let mergedAllergens = useEnhancedSafety ? enhanced.detectedAllergens : self.detectedAllergens
+        let mergedEvidence = useEnhancedSafety ? enhanced.detectionEvidence : self.detectionEvidence
+        let mergedCrossContam: [AnalysisResult.CrossContaminationRisk]? = {
+            if useEnhancedSafety {
+                return enhanced.crossContaminationRisks ?? self.crossContaminationRisks
+            }
+            if let existing = self.crossContaminationRisks, !existing.isEmpty { return existing }
+            return enhanced.crossContaminationRisks
+        }()
+        let mergedGMO = useEnhancedSafety ? (enhanced.gmoStatus ?? self.gmoStatus) : self.gmoStatus
+        let mergedSafetyLevel = useEnhancedSafety ? (enhanced.safetyLevel ?? self.safetyLevel) : self.safetyLevel
+
+        return AnalysisResult(
             id: self.id,
             productName: enhanced.productName,
             overallScore: enhanced.overallScore,
-            // Safety — keep from preliminary
-            isSafe: self.isSafe,
-            confidence: self.confidence,
-            confidenceFactors: self.confidenceFactors,
-            violations: self.violations,
-            warnings: self.warnings,
-            cautionWarnings: self.cautionWarnings,
+            isSafe: mergedIsSafe,
+            confidence: mergedConfidence,
+            confidenceFactors: mergedFactors,
+            violations: mergedViolations,
+            warnings: mergedWarnings,
+            cautionWarnings: mergedCautions,
             ingredients: !enhanced.ingredients.isEmpty ? enhanced.ingredients : self.ingredients,
-            detectedAllergens: self.detectedAllergens,
-            detectionEvidence: self.detectionEvidence,
+            detectedAllergens: mergedAllergens,
+            detectionEvidence: mergedEvidence,
             // Enrichment — take from enhanced
             healthScore: enhanced.healthScore,
             environmentalScore: enhanced.environmentalScore > 0 ? enhanced.environmentalScore : self.environmentalScore,
             co2Emissions: enhanced.co2Emissions > 0 ? enhanced.co2Emissions : self.co2Emissions,
             waterUsage: enhanced.waterUsage > 0 ? enhanced.waterUsage : self.waterUsage,
-            animalImpact: (!enhanced.animalImpact.isEmpty && enhanced.animalImpact != "Unknown") ? enhanced.animalImpact : self.animalImpact,
-            landUse: (!enhanced.landUse.isEmpty && enhanced.landUse != "Unknown") ? enhanced.landUse : self.landUse,
+            animalImpact: Self.displayImpactLabel(enhanced.animalImpact != "Unknown" ? enhanced.animalImpact : self.animalImpact),
+            landUse: Self.displayImpactLabel(enhanced.landUse != "Unknown" ? enhanced.landUse : self.landUse),
             nutritionalHighlights: enhanced.nutritionalHighlights,
             healthConcerns: enhanced.healthConcerns,
             healthBenefits: enhanced.healthBenefits,
@@ -303,9 +328,8 @@ struct AnalysisResult: Identifiable, Codable, Equatable {
             sourceBarcode: self.sourceBarcode,
             sourceType: enhanced.sourceType,
             timestamp: self.timestamp,
-            // Safety — keep from preliminary
-            safetyLevel: self.safetyLevel,
-            gmoStatus: self.gmoStatus,
+            safetyLevel: mergedSafetyLevel,
+            gmoStatus: mergedGMO,
             // Data — keep from preliminary (already from OFF)
             nutriscoreGrade: self.nutriscoreGrade,
             ecoscoreGrade: self.ecoscoreGrade,
@@ -315,9 +339,22 @@ struct AnalysisResult: Identifiable, Codable, Equatable {
             menuDishes: self.menuDishes,
             safetyConfidenceExplanation: enhanced.safetyConfidenceExplanation,
             ingredientEducation: enhanced.ingredientEducation,
-            crossContaminationRisks: self.crossContaminationRisks,
+            crossContaminationRisks: mergedCrossContam,
             alternativesMetadata: enhanced.alternativesMetadata ?? self.alternativesMetadata
         )
+    }
+
+    private static func displayImpactLabel(_ value: String) -> String {
+        let lower = value.lowercased()
+        if lower.contains("high") { return "High" }
+        if lower.contains("medium") || lower.contains("moderate") { return "Medium" }
+        if lower.contains("low") { return "Low" }
+        switch value.uppercased() {
+        case "A", "B": return "Low"
+        case "C": return "Medium"
+        case "D", "E": return "High"
+        default: return value.isEmpty ? "Medium" : value
+        }
     }
 
     // MARK: - Safety Confidence Explanation
@@ -561,6 +598,109 @@ struct AnalysisResult: Identifiable, Codable, Equatable {
             
             // Default
             return 300.0
+        }
+
+        /// Best URL for viewing this alternative (direct link, OFF product page, or OFF search).
+        var productURL: URL? {
+            if let link = link?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !link.isEmpty,
+               let url = URL(string: link),
+               url.scheme?.hasPrefix("http") == true {
+                return url
+            }
+            if let barcode = barcode?.filter(\.isNumber), barcode.count >= 8 {
+                return URL(string: "https://world.openfoodfacts.org/product/\(barcode)")
+            }
+            let searchTerm = [brand, name]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            guard !searchTerm.isEmpty,
+                  let encoded = searchTerm.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+                return nil
+            }
+            return URL(string: "https://world.openfoodfacts.org/cgi/search.pl?search_terms=\(encoded)&search_simple=1&action=process")
+        }
+
+        var displayHealthScore: Double { healthScore ?? Self.estimatedHealthScore(from: name) }
+        var displayEnvironmentalScore: Double { environmentalScore ?? Self.estimatedEnvironmentalScore(from: name) }
+        var displayEthicsScore: Double { ethicsScore ?? Self.estimatedEthicsScore(from: name) }
+
+        static func scoreFromNutriscore(_ grade: String?) -> Double? {
+            guard let grade = grade?.uppercased(), ["A", "B", "C", "D", "E"].contains(grade) else { return nil }
+            switch grade {
+            case "A": return 90
+            case "B": return 75
+            case "C": return 60
+            case "D": return 45
+            case "E": return 30
+            default: return nil
+            }
+        }
+
+        static func scoreFromEcoscore(_ grade: String?) -> Double? {
+            guard let grade = grade?.lowercased(), ["a", "b", "c", "d", "e"].contains(grade) else { return nil }
+            switch grade {
+            case "a": return 90
+            case "b": return 75
+            case "c": return 60
+            case "d": return 45
+            case "e": return 30
+            default: return nil
+            }
+        }
+
+        static func estimatedHealthScore(from name: String) -> Double {
+            let n = name.lowercased()
+            if n.contains("organic") || n.contains("unsweetened") || n.contains("plain") { return 78 }
+            if n.contains("vegan") || n.contains("plant-based") || n.contains("tofu") || n.contains("soy") { return 72 }
+            if n.contains("low fat") || n.contains("sugar free") { return 70 }
+            return 65
+        }
+
+        static func estimatedEnvironmentalScore(from name: String) -> Double {
+            let n = name.lowercased()
+            if n.contains("vegan") || n.contains("plant-based") || n.contains("tofu") || n.contains("oat") { return 82 }
+            if n.contains("organic") { return 75 }
+            return 68
+        }
+
+        static func estimatedEthicsScore(from name: String) -> Double {
+            let n = name.lowercased()
+            if n.contains("vegan") || n.contains("plant-based") { return 88 }
+            if n.contains("fair trade") || n.contains("organic") { return 80 }
+            return 72
+        }
+
+        func enriched(
+            link: String? = nil,
+            imageURL: String? = nil,
+            barcode: String? = nil,
+            healthScore: Double? = nil,
+            environmentalScore: Double? = nil,
+            ethicsScore: Double? = nil,
+            estimatedCO2: Double? = nil,
+            isEnriched: Bool = false,
+            dataSource: String? = nil
+        ) -> Alternative {
+            Alternative(
+                name: name,
+                brand: brand,
+                reason: reason,
+                imageURL: imageURL ?? self.imageURL,
+                link: link ?? self.link,
+                estimatedCO2: estimatedCO2 ?? self.estimatedCO2,
+                estimatedWater: estimatedWater,
+                healthScore: healthScore ?? self.healthScore,
+                environmentalScore: environmentalScore ?? self.environmentalScore,
+                ethicsScore: ethicsScore ?? self.ethicsScore,
+                barcode: barcode ?? self.barcode,
+                isEnriched: isEnriched,
+                dataSource: dataSource ?? self.dataSource,
+                price: price,
+                priceSource: priceSource,
+                nutrition: nutrition
+            )
         }
     }
 

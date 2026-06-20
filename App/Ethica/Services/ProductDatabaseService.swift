@@ -109,6 +109,103 @@ class ProductDatabaseService: ObservableObject {
         return false
     }
 
+    /// Broad nut allergy: "nuts" should also match peanut/tree-nut cross-contamination warnings.
+    static func userAllergenMatchesCrossContaminationRisk(userAllergen: String, riskAllergen: String) -> Bool {
+        if allergensMatch(userAllergen, riskAllergen) { return true }
+        let user = userAllergen.lowercased()
+        guard user == "nuts" || user == "nut" else { return false }
+        return allergensMatch(riskAllergen, "peanuts")
+            || allergensMatch(riskAllergen, "tree nuts")
+            || allergensMatch(riskAllergen, "treenuts")
+    }
+
+    static func normalizedConfidencePercent(_ confidence: Double) -> Double {
+        confidence <= 1.0 ? confidence * 100.0 : confidence
+    }
+
+    static func landUseLabel(from ecoscoreGrade: String?) -> String {
+        guard let grade = ecoscoreGrade?.uppercased(), !grade.isEmpty else { return "Medium" }
+        switch grade {
+        case "A", "B": return "Low"
+        case "C": return "Medium"
+        case "D", "E": return "High"
+        default: return "Medium"
+        }
+    }
+
+    static func fullLabelText(
+        product: OpenFoodFactsProduct,
+        rawOFFJSON: [String: Any]?,
+        ingredients: [String]
+    ) -> String {
+        var parts: [String] = []
+        if let en = product.ingredientsTextEn, !en.isEmpty { parts.append(en) }
+        else if let text = product.ingredientsText, !text.isEmpty { parts.append(text) }
+        if let raw = rawOFFJSON?["ingredients_text_en"] as? String, !raw.isEmpty { parts.append(raw) }
+        if let raw = rawOFFJSON?["ingredients_text"] as? String, !raw.isEmpty { parts.append(raw) }
+        if let allergens = product.allergens, !allergens.isEmpty { parts.append(allergens) }
+        if let traces = rawOFFJSON?["traces"] as? String, !traces.isEmpty { parts.append(traces) }
+        if parts.isEmpty {
+            parts.append(ingredients.joined(separator: ", "))
+        }
+        return parts.joined(separator: "\n")
+    }
+
+    /// Parses "may contain" / shared-facility warnings from label text.
+    static func extractCrossContaminationAllergens(from text: String) -> [String] {
+        let normalized = text
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "  ", with: " ")
+
+        let patterns = [
+            #"(?i)may\s+contain(?:\s+traces?\s+of)?\s+([^\.;\n]+)"#,
+            #"(?i)made\s+in\s+a\s+facility\s+that\s+process(?:es|ing)\s+([^\.;\n]+)"#,
+            #"(?i)manufactured\s+in\s+a\s+facility\s+that\s+also\s+process(?:es|ing)\s+([^\.;\n]+)"#,
+            #"(?i)processed\s+in\s+a\s+facility\s+that\s+(?:also\s+)?(?:process(?:es|ing)|handles?)\s+([^\.;\n]+)"#,
+            #"(?i)produced\s+in\s+a\s+facility\s+that\s+also\s+(?:process(?:es|ing)|handles?)\s+([^\.;\n]+)"#,
+            #"(?i)traces?\s+of\s+([^\.;\n]+)"#
+        ]
+
+        var found: [String] = []
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(normalized.startIndex..., in: normalized)
+            for match in regex.matches(in: normalized, range: range) {
+                guard match.numberOfRanges > 1,
+                      let captureRange = Range(match.range(at: 1), in: normalized) else { continue }
+                let segment = String(normalized[captureRange])
+                for token in segment.components(separatedBy: CharacterSet(charactersIn: ",;/&")) {
+                    let cleaned = normalizeCrossContaminationToken(token)
+                    if !cleaned.isEmpty, !found.contains(where: { $0.lowercased() == cleaned.lowercased() }) {
+                        found.append(cleaned)
+                    }
+                }
+            }
+        }
+        return found
+    }
+
+    private static func normalizeCrossContaminationToken(_ token: String) -> String {
+        var t = token.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        t = t.replacingOccurrences(of: "_", with: " ")
+        t = t.replacingOccurrences(of: "-", with: " ")
+        if t.hasPrefix("en:") { t = String(t.dropFirst(3)) }
+        let aliases: [String: String] = [
+            "treenut": "tree nuts",
+            "treenuts": "tree nuts",
+            "tree nut": "tree nuts",
+            "peanut": "peanuts",
+            "groundnut": "peanuts",
+            "milk": "dairy",
+            "soya": "soy",
+            "egg": "eggs",
+            "shell fish": "shellfish",
+            "tree nuts": "tree nuts"
+        ]
+        if let mapped = aliases[t] { return mapped }
+        return t.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// Optimized URLSession for backend API calls with connection reuse
     private lazy var backendSession: URLSession = {
         let config = URLSessionConfiguration.default
@@ -259,23 +356,33 @@ class ProductDatabaseService: ObservableObject {
 
                 await updateProgress(0.9, step: "Enhancing in background...")
 
-                // STEP 4a: Fire full enrichment in background (cancel previous if rapid re-scan)
-                activeEnrichmentTask?.cancel()
-                let capturedProduct = offProduct
-                let capturedRawJSON = rawOFFJSON
-                activeEnrichmentTask = Task { [weak self] in
-                    await self?.runBackendEnrichment(
-                        product: capturedProduct, barcode: barcode,
-                        preferences: preferences, rawOFFJSON: capturedRawJSON
-                    )
+                // STEP 4a: Full enrichment only when we lack ingredient text for AI.
+                if ingredients.isEmpty {
+                    activeEnrichmentTask?.cancel()
+                    let capturedProduct = offProduct
+                    let capturedRawJSON = rawOFFJSON
+                    activeEnrichmentTask = Task { [weak self] in
+                        await self?.runBackendEnrichment(
+                            product: capturedProduct, barcode: barcode,
+                            preferences: preferences, rawOFFJSON: capturedRawJSON
+                        )
+                    }
                 }
 
                 // STEP 4b: Run Gemini quick safety verdict in background; publish when ready.
+                let capturedProduct = offProduct
+                let capturedRawJSON = rawOFFJSON
+                let ingredientsText = Self.fullLabelText(
+                    product: capturedProduct,
+                    rawOFFJSON: capturedRawJSON,
+                    ingredients: ingredients
+                )
                 Task { [weak self] in
                     guard let self else { return }
                     let safetyLookup = await self.withTimeout(seconds: 12) {
                         await NetworkService.shared.quickAllergenCheck(
                             ingredients: ingredients,
+                            ingredientsText: ingredientsText,
                             preferences: preferences,
                             barcode: barcode,
                             productName: capturedProduct.productNameEn ?? capturedProduct.productName,
@@ -399,25 +506,35 @@ class ProductDatabaseService: ObservableObject {
             result = mergeDietaryViolations(into: result, product: offProduct, preferences: preferences)
             result = applyJainValidation(result, preferences: preferences)
 
-            // Enrich in background — do not block the scanner UI.
-            activeEnrichmentTask?.cancel()
-            let capturedProduct = offProduct
-            let capturedRawJSON = rawOFFJSON
-            activeEnrichmentTask = Task { [weak self] in
-                await self?.runBackendEnrichment(
-                    product: capturedProduct,
-                    barcode: barcode,
-                    preferences: preferences,
-                    rawOFFJSON: capturedRawJSON
-                )
+            // Enrich in background — quick allergen check handles AI when ingredients exist.
+            if ingredients.isEmpty {
+                activeEnrichmentTask?.cancel()
+                let capturedProduct = offProduct
+                let capturedRawJSON = rawOFFJSON
+                activeEnrichmentTask = Task { [weak self] in
+                    await self?.runBackendEnrichment(
+                        product: capturedProduct,
+                        barcode: barcode,
+                        preferences: preferences,
+                        rawOFFJSON: capturedRawJSON
+                    )
+                }
             }
 
             if !ingredients.isEmpty {
+                let capturedProduct = offProduct
+                let capturedRawJSON = rawOFFJSON
+                let ingredientsText = Self.fullLabelText(
+                    product: capturedProduct,
+                    rawOFFJSON: capturedRawJSON,
+                    ingredients: ingredients
+                )
                 Task { [weak self] in
                     guard let self else { return }
                     let safetyLookup = await self.withTimeout(seconds: 12) {
                         await NetworkService.shared.quickAllergenCheck(
                             ingredients: ingredients,
+                            ingredientsText: ingredientsText,
                             preferences: preferences,
                             barcode: barcode,
                             productName: capturedProduct.productNameEn ?? capturedProduct.productName,
@@ -537,8 +654,14 @@ class ProductDatabaseService: ObservableObject {
 
                 if offSet != estSet {
                     logger.debug("🔄 OFF ingredients differ from estimated, re-checking safety...")
+                    let offText = Self.fullLabelText(
+                        product: offProduct,
+                        rawOFFJSON: rawOFFJSON,
+                        ingredients: offIngredients
+                    )
                     safetyResult = await NetworkService.shared.quickAllergenCheck(
                         ingredients: offIngredients,
+                        ingredientsText: offText,
                         preferences: preferences,
                         barcode: offProduct.code,
                         productName: offProduct.productNameEn ?? offProduct.productName,
@@ -789,7 +912,7 @@ class ProductDatabaseService: ObservableObject {
             isSafe = safety.isSafe
             safetyLevel = safety.safetyLevel
             gmoStatus = safety.gmoStatus
-            confidence = safety.confidence
+            confidence = Self.normalizedConfidencePercent(safety.confidence)
         } else {
             // Quick-check failed — fall back to client-side analysis
             logger.warning("⚠️ Quick safety check unavailable, using client-side analysis")
@@ -851,7 +974,7 @@ class ProductDatabaseService: ObservableObject {
             co2Emissions: envImpact.co2,
             waterUsage: envImpact.water,
             animalImpact: envImpact.animalImpact,
-            landUse: product.ecoscoreGrade?.uppercased() ?? "Unknown",
+            landUse: Self.landUseLabel(from: product.ecoscoreGrade),
             nutritionalHighlights: [],
             healthConcerns: [],
             healthBenefits: [],
@@ -933,7 +1056,7 @@ class ProductDatabaseService: ObservableObject {
             let lower = ingredient.lowercased()
             for risk in highRiskGMO {
                 if matchesWord(lower, risk) {
-                    warnings.append("ℹ️ May contain GMO: \(ingredient) — verify with full scan")
+                    warnings.append("ℹ️ Possible GMO ingredient: \(ingredient)")
                     break
                 }
             }
@@ -1855,6 +1978,20 @@ class ProductDatabaseService: ObservableObject {
             }
         }
 
+        let labelTexts = [
+            off.ingredientsTextEn,
+            off.ingredientsText,
+            off.allergens,
+            off.allergensFromIngredients,
+            result.ingredients.joined(separator: ", ")
+        ].compactMap { $0 }.filter { !$0.isEmpty }
+
+        for text in labelTexts {
+            for allergen in Self.extractCrossContaminationAllergens(from: text) {
+                tracesSet.insert(allergen.lowercased())
+            }
+        }
+
         guard !tracesSet.isEmpty else { return result }
 
         var mergedRisks: [AnalysisResult.CrossContaminationRisk] = result.crossContaminationRisks ?? []
@@ -1873,7 +2010,7 @@ class ProductDatabaseService: ObservableObject {
 
         // Strict mode: if any risk matches user allergens, escalate to unsafe.
         let matchingRisks: [AnalysisResult.CrossContaminationRisk] = (!preferences.mayContainSafe && !userAllergens.isEmpty)
-            ? mergedRisks.filter { risk in userAllergens.contains { Self.allergensMatch(risk.allergen, $0) } }
+            ? mergedRisks.filter { risk in userAllergens.contains { Self.userAllergenMatchesCrossContaminationRisk(userAllergen: $0, riskAllergen: risk.allergen) } }
             : []
         let strictHit = !matchingRisks.isEmpty
 

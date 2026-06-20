@@ -15,76 +15,15 @@ struct ProductComparisonView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ZStack {
-            // Background
-            Theme.backgroundPrimary
-                .ignoresSafeArea()
+        GeometryReader { geometry in
+            VStack(spacing: 12) {
+                header
+                    .padding(.top, 4)
 
-            VStack(spacing: 20) {
-                // Header
-                HStack {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "chevron.left")
-                            .font(.title3)
-                            .foregroundColor(Theme.primary)
-                    }
-
-                    Spacer()
-
-                    VStack(spacing: 4) {
-                        Text("Better Alternatives")
-                            .font(.title2.bold())
-                            .foregroundColor(Theme.textPrimary)
-
-                        Text("\(alternatives.count) options available")
-                            .font(.caption)
-                            .foregroundColor(Theme.textTertiary)
-                    }
-
-                    Spacer()
-
-                    // Placeholder for symmetry
-                    Image(systemName: "chevron.left")
-                        .font(.title3)
-                        .opacity(0)
-                }
-                .padding(.horizontal)
-                .padding(.top, 10)
-
-                // Swipeable cards
                 if alternatives.isEmpty {
-                    // No alternatives - show message
-                    VStack(spacing: 16) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 48))
-                            .foregroundColor(Theme.textTertiary)
-
-                        Text("No Alternatives Available")
-                            .font(.title3.bold())
-                            .foregroundColor(Theme.textPrimary)
-
-                        Text("We couldn't find better alternatives for this product at the moment.")
-                            .font(.subheadline)
-                            .foregroundColor(Theme.textSecondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
-
-                        Button(action: { dismiss() }) {
-                            Text("Go Back")
-                                .font(.subheadline.bold())
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(Theme.primary)
-                                .cornerRadius(12)
-                        }
-                        .padding(.horizontal, 40)
-                        .padding(.top, 20)
-                    }
-                    .frame(maxHeight: .infinity)
+                    emptyState
                 } else {
                     TabView(selection: $selectedIndex) {
-                        // Current product card (shown first for comparison)
                         ComparisonCard(
                             product: currentProduct,
                             isCurrent: true,
@@ -92,7 +31,6 @@ struct ProductComparisonView: View {
                         )
                         .tag(0)
 
-                        // Alternative cards with rankings
                         ForEach(Array(alternatives.enumerated()), id: \.offset) { index, alt in
                             ComparisonCard(
                                 currentProduct: currentProduct,
@@ -105,10 +43,73 @@ struct ProductComparisonView: View {
                     }
                     .tabViewStyle(.page(indexDisplayMode: .always))
                     .indexViewStyle(.page(backgroundDisplayMode: .always))
-                    .frame(height: 580)  // Fixed height for stability - increased for better spacing
+                    .frame(maxHeight: .infinity)
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, max(geometry.safeAreaInsets.bottom, 16))
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
+        .background(Theme.backgroundPrimary.ignoresSafeArea())
+    }
+
+    private var header: some View {
+        HStack {
+            Button(action: { dismiss() }) {
+                Image(systemName: "chevron.left")
+                    .font(.title3)
+                    .foregroundColor(Theme.primary)
+                    .frame(width: 44, height: 44)
+            }
+
+            Spacer()
+
+            VStack(spacing: 4) {
+                Text("Better Alternatives")
+                    .font(.title3.bold())
+                    .foregroundColor(Theme.textPrimary)
+
+                Text("\(alternatives.count) options available")
+                    .font(.caption)
+                    .foregroundColor(Theme.textTertiary)
+            }
+
+            Spacer()
+
+            Color.clear
+                .frame(width: 44, height: 44)
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 48))
+                .foregroundColor(Theme.textTertiary)
+
+            Text("No Alternatives Available")
+                .font(.title3.bold())
+                .foregroundColor(Theme.textPrimary)
+
+            Text("We couldn't find better alternatives for this product at the moment.")
+                .font(.subheadline)
+                .foregroundColor(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+
+            Button(action: { dismiss() }) {
+                Text("Go Back")
+                    .font(.subheadline.bold())
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Theme.primary)
+                    .cornerRadius(12)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 8)
+        }
+        .frame(maxHeight: .infinity)
     }
 
     func getRank(for index: Int) -> AlternativeRank {
@@ -148,7 +149,8 @@ struct ComparisonCard: View {
     let rank: AlternativeRank?
 
     var body: some View {
-        VStack(spacing: 0) {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 0) {
                 // Badge - Current Product or Rank
                 HStack {
                     Spacer()
@@ -327,28 +329,25 @@ struct ComparisonCard: View {
                     VStack(spacing: 14) {
                         // Score cards row
                         HStack(spacing: 10) {
-                            // Health Score
                             scoreCard(
                                 title: "Health",
-                                score: alt.healthScore,
+                                score: alt.displayHealthScore,
                                 icon: "heart.fill",
-                                color: alt.healthScore.map { scoreColor($0) } ?? Theme.textMuted
+                                color: scoreColor(alt.displayHealthScore)
                             )
 
-                            // Environmental Score
                             scoreCard(
                                 title: "Environment",
-                                score: alt.environmentalScore,
+                                score: alt.displayEnvironmentalScore,
                                 icon: "leaf.fill",
-                                color: alt.environmentalScore.map { scoreColor($0) } ?? Theme.textMuted
+                                color: scoreColor(alt.displayEnvironmentalScore)
                             )
 
-                            // Ethics Score
                             scoreCard(
                                 title: "Ethics",
-                                score: alt.ethicsScore,
+                                score: alt.displayEthicsScore,
                                 icon: "star.fill",
-                                color: alt.ethicsScore.map { scoreColor($0) } ?? Theme.textMuted
+                                color: scoreColor(alt.displayEthicsScore)
                             )
                         }
 
@@ -387,55 +386,19 @@ struct ComparisonCard: View {
                     .padding(.top, 12)
                 }
 
-                Spacer(minLength: 20)
-
                 // CTA button for alternatives
                 if let alt = alternative {
-                    if let link = alt.link, let url = URL(string: link) {
-                        Button(action: {
-                            UIApplication.shared.open(url)
-                        }) {
-                            HStack {
-                                Text("View Product")
-                                Image(systemName: "arrow.right")
-                            }
-                            .font(.subheadline.bold())
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Theme.gradientHero)
-                            .cornerRadius(12)
-                        }
+                    alternativeActionButton(for: alt)
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 20)
-                    } else {
-                        // No link available - show search button
-                        Button(action: {
-                            let searchQuery = (alt.brand ?? "") + " " + alt.name
-                            let encoded = searchQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                            if let url = URL(string: "https://www.amazon.com/s?k=\(encoded)") {
-                                UIApplication.shared.open(url)
-                            }
-                        }) {
-                            HStack {
-                                Text("Search on Amazon")
-                                Image(systemName: "magnifyingglass")
-                            }
-                            .font(.subheadline.bold())
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Theme.primary)
-                            .cornerRadius(12)
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 20)
-                    }
+                        .padding(.top, 16)
+                        .padding(.bottom, 28)
+                } else {
+                    Spacer(minLength: 16)
                 }
             }
-            .padding(.vertical, 20)
-            .frame(maxWidth: .infinity)
-            .background(
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
             ZStack {
                 RoundedRectangle(cornerRadius: 24)
                     .fill(isCurrent ? Theme.error.opacity(0.05) : Theme.success.opacity(0.05))
@@ -448,7 +411,28 @@ struct ComparisonCard: View {
             }
         )
         .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private func alternativeActionButton(for alt: AnalysisResult.Alternative) -> some View {
+        Button(action: {
+            guard let url = alt.productURL else { return }
+            UIApplication.shared.open(url)
+        }) {
+            HStack {
+                Text(alt.barcode != nil || alt.link != nil ? "View Product" : "View on Open Food Facts")
+                Image(systemName: "arrow.up.right")
+            }
+            .font(.subheadline.bold())
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(Theme.primary)
+            .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
     }
     
     private var productPlaceholderIcon: some View {
@@ -489,21 +473,15 @@ struct ComparisonCard: View {
     }
 
     // Helper view for score cards (matching ResultsView style)
-    private func scoreCard(title: String, score: Double?, icon: String, color: Color) -> some View {
+    private func scoreCard(title: String, score: Double, icon: String, color: Color) -> some View {
         VStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(color)
 
-            if let score = score {
-                Text("\(Int(score))")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.white)
-            } else {
-                Text("--")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(Theme.textMuted)
-            }
+            Text("\(Int(score))")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.white)
 
             Text(title)
                 .font(.system(size: 10, weight: .medium))
@@ -517,7 +495,7 @@ struct ComparisonCard: View {
                 .fill(Theme.surfaceSecondary)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(color.opacity(score != nil ? 0.3 : 0.1), lineWidth: 1)
+                        .stroke(color.opacity(0.3), lineWidth: 1)
                 )
         )
     }

@@ -6,8 +6,12 @@
 //
 
 import Foundation
-import SQLite
 
+#if canImport(SQLite)
+import SQLite
+#endif
+
+#if canImport(SQLite)
 class ReviewService {
     static let shared = ReviewService()
     private let db: Connection?
@@ -440,3 +444,69 @@ class ReviewService {
         return try vote.get(ReviewVote.isHelpfulCol)
     }
 }
+#else
+final class ReviewService {
+    static let shared = ReviewService()
+
+    private init() {
+        AppLogger.warning("ReviewService: SQLite unavailable, reviews disabled")
+    }
+
+    func submitReview(
+        productName: String,
+        productBrand: String?,
+        barcode: String?,
+        rating: Double,
+        review: String?,
+        isAlternative: Bool,
+        originalProduct: String?,
+        tasteRating: Double?,
+        valueRating: Double?,
+        availabilityRating: Double?
+    ) async throws {
+        _ = productName
+        _ = productBrand
+        _ = barcode
+        _ = rating
+        _ = review
+        _ = isAlternative
+        _ = originalProduct
+        _ = tasteRating
+        _ = valueRating
+        _ = availabilityRating
+    }
+
+    func getReviewsForProduct(productName: String) throws -> [ProductReview] {
+        _ = productName
+        return []
+    }
+
+    func getReviewSummary(productName: String) async throws -> ProductReviewSummary {
+        ProductReviewSummary(
+            productName: productName,
+            productBrand: nil,
+            totalReviews: 0,
+            averageRating: 0,
+            averageTasteRating: nil,
+            averageValueRating: nil,
+            averageAvailabilityRating: nil,
+            fiveStarCount: 0,
+            fourStarCount: 0,
+            threeStarCount: 0,
+            twoStarCount: 0,
+            oneStarCount: 0,
+            topReviews: []
+        )
+    }
+
+    func voteOnReview(reviewId: String, isHelpful: Bool) async throws {
+        _ = reviewId
+        _ = isHelpful
+    }
+
+    func getUserVote(reviewId: String) throws -> Bool? {
+        _ = reviewId
+        return nil
+    }
+}
+#endif

@@ -88,6 +88,7 @@ class NetworkService: ObservableObject {
     /// Fast allergen/dietary/GMO safety check (2-4s). Returns nil on failure (caller falls back to client-side).
     func quickAllergenCheck(
         ingredients: [String],
+        ingredientsText: String? = nil,
         preferences: UserPreferences,
         barcode: String?,
         productName: String?,
@@ -98,12 +99,25 @@ class NetworkService: ObservableObject {
             return nil
         }
         _ = barcode
-        _ = openfoodfactsData
 
         do {
             guard GeminiConfig.isConfigured else { return nil }
 
-            let text = ingredients.joined(separator: ", ")
+            var textParts: [String] = []
+            if let ingredientsText, !ingredientsText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                textParts.append(ingredientsText)
+            } else {
+                textParts.append(ingredients.joined(separator: ", "))
+            }
+            if let off = openfoodfactsData {
+                for key in ["traces", "allergens", "ingredients_text_en", "ingredients_text"] {
+                    if let value = off[key] as? String, !value.isEmpty {
+                        textParts.append(value)
+                    }
+                }
+            }
+            let text = textParts.joined(separator: "\n")
+
             let json = try await GeminiService.shared.analyzeIngredientsTextToAnalysisResultJSON(
                 ingredientsText: text,
                 productName: productName,
@@ -112,11 +126,13 @@ class NetworkService: ObservableObject {
 
             let isSafe = (json["isSafe"] as? Bool) ?? true
             let safetyLevel = json["safetyLevel"] as? String
-            let confidence = (json["confidence"] as? Double) ?? 0.6
+            let rawConfidence = (json["confidence"] as? Double) ?? 0.6
+            let confidence = ProductDatabaseService.normalizedConfidencePercent(rawConfidence)
             let violations = json["violations"] as? [String] ?? []
             let warnings = json["warnings"] as? [String] ?? []
             let cautionWarnings = json["cautionWarnings"] as? [String] ?? []
             let detectedAllergens = json["detectedAllergens"] as? [String] ?? []
+            let mayContain = json["allergenMayContain"] as? [String] ?? []
 
             return QuickSafetyResult(
                 isSafe: isSafe,
@@ -127,7 +143,7 @@ class NetworkService: ObservableObject {
                 cautionWarnings: cautionWarnings,
                 detectedAllergens: detectedAllergens,
                 detectionEvidence: nil,
-                crossContaminationRisks: nil,
+                crossContaminationRisks: mayContain.isEmpty ? nil : mayContain,
                 gmoStatus: json["gmoStatus"] as? String,
                 sourceType: "gemini_text",
                 extractedIngredients: ingredients,
@@ -1094,7 +1110,7 @@ class NetworkService: ObservableObject {
                 preferences: preferences
             )
             AppLogger.debug("✅ Gemini suggested \(alts.count) alternatives")
-            return alts
+            return await enrichAlternatives(alts)
         } catch {
             AppLogger.error("❌ Error fetching alternatives (Gemini): \(error.localizedDescription)")
             return []
@@ -1107,11 +1123,56 @@ class NetworkService: ObservableObject {
         return (co2, water)
     }
 
-    /// Enrich alternatives with OpenFoodFacts data (health, environment, ethics scores)
-    /// Returns enriched alternatives array with real data where available
+    /// Enrich alternatives with OpenFoodFacts data (health, environment, ethics scores, barcode, link)
     func enrichAlternatives(_ alternatives: [AnalysisResult.Alternative]) async -> [AnalysisResult.Alternative] {
-        // Backend-less build: keep AI estimates (and any OpenFoodFacts-enriched values already present).
-        return alternatives
+        guard !alternatives.isEmpty else { return [] }
+
+        let offClient = OpenFoodFactsClient()
+        var enriched: [AnalysisResult.Alternative] = []
+        enriched.reserveCapacity(alternatives.count)
+
+        for alternative in alternatives {
+            let searchQuery = [alternative.brand, alternative.name]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+
+            if let offResult = await offClient.searchByName(searchQuery.isEmpty ? alternative.name : searchQuery) {
+                let product = offResult.product
+                let barcode = product.code
+                let offLink = barcode.map { "https://world.openfoodfacts.org/product/\($0)" }
+                let health = AnalysisResult.Alternative.scoreFromNutriscore(product.nutriscoreGrade)
+                    ?? AnalysisResult.Alternative.estimatedHealthScore(from: alternative.name)
+                let environment = AnalysisResult.Alternative.scoreFromEcoscore(product.ecoscoreGrade)
+                    ?? AnalysisResult.Alternative.estimatedEnvironmentalScore(from: alternative.name)
+                let ethics = AnalysisResult.Alternative.estimatedEthicsScore(from: alternative.name)
+                let co2 = product.ecoscoreData?.agribalyse?.co2Total ?? alternative.estimatedCO2
+
+                enriched.append(alternative.enriched(
+                    link: alternative.link ?? offLink,
+                    imageURL: product.imageUrl,
+                    barcode: barcode,
+                    healthScore: health,
+                    environmentalScore: environment,
+                    ethicsScore: ethics,
+                    estimatedCO2: co2,
+                    isEnriched: true,
+                    dataSource: "openfoodfacts"
+                ))
+                AppLogger.debug("✅ Enriched alternative via OFF: \(alternative.name) → barcode \(barcode ?? "n/a")")
+            } else {
+                enriched.append(alternative.enriched(
+                    healthScore: alternative.healthScore ?? AnalysisResult.Alternative.estimatedHealthScore(from: alternative.name),
+                    environmentalScore: alternative.environmentalScore ?? AnalysisResult.Alternative.estimatedEnvironmentalScore(from: alternative.name),
+                    ethicsScore: alternative.ethicsScore ?? AnalysisResult.Alternative.estimatedEthicsScore(from: alternative.name),
+                    isEnriched: false,
+                    dataSource: alternative.dataSource ?? "ai_estimate"
+                ))
+                AppLogger.debug("ℹ️ OFF miss for alternative, using AI estimates: \(alternative.name)")
+            }
+        }
+
+        return enriched
     }
 
     /// Public accessor for pre-resizing from ScannerView (runs on background thread).
@@ -1282,26 +1343,12 @@ class NetworkService: ObservableObject {
         co2Impact: Double,
         waterImpact: Double
     ) async {
-        guard let accessToken = AuthenticationService.shared.authToken, !accessToken.isEmpty else { return }
-        guard let userId = AuthenticationService.shared.currentUserId, !userId.isEmpty else { return }
-
-        let payload: [String: Any] = [
-            "id": productId,
-            "user_id": userId,
-            "product_name": productName,
-            "decision": decision,
-            "metadata": [
-                "co2_emissions": co2Impact,
-                "water_usage": waterImpact
-            ],
-            "created_at": ISO8601DateFormatter().string(from: Date())
-        ]
-
-        do {
-            try await SupabaseAPI.shared.upsertRow(accessToken: accessToken, table: "scan_history", payload: payload, onConflict: "id")
-        } catch {
-            AppLogger.debug("⚠️ Supabase purchase decision sync failed: \(error.localizedDescription)")
+        guard let scanId = UUID(uuidString: productId),
+              let scan = HistoryService.shared.scan(withId: scanId) else {
+            AppLogger.debug("⚠️ Purchase decision sync skipped: scan not found for id \(productId)")
+            return
         }
+        await syncScanToSupabase(scan)
     }
 
     
@@ -1495,6 +1542,8 @@ class NetworkService: ObservableObject {
         let meta: [String: Any] = [
             "is_safe": scan.isSafe,
             "violations": scan.violations,
+            "violations_count": scan.violationsCount,
+            "concerns_count": scan.concernsCount,
             "health_score": scan.healthScore,
             "co2_emissions": scan.co2Emissions,
             "water_usage": scan.waterUsage,
@@ -1502,7 +1551,11 @@ class NetworkService: ObservableObject {
             "purchase_decision": scan.purchaseDecision.rawValue,
             "alternative_name": scan.alternativeName as Any,
             "alternative_co2": scan.alternativeCO2 as Any,
-            "alternative_water": scan.alternativeWater as Any
+            "alternative_water": scan.alternativeWater as Any,
+            "selected_alternative_index": scan.selectedAlternativeIndex as Any,
+            "price_comparison": scan.priceComparison as Any,
+            "decision_timestamp": scan.decisionTimestamp.map { ISO8601DateFormatter().string(from: $0) } as Any,
+            "needs_review": scan.needsReview
         ]
 
         let payload: [String: Any] = [
